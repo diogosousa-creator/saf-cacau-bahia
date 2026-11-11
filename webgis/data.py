@@ -142,3 +142,16 @@ def load_selected_farm_feature(farm_id: str) -> dict | None:
         "properties": {"id": str(farm_id)},
         "geometry": geometry.__geo_interface__,
     }
+
+
+@st.cache_data(show_spinner=False)
+def load_municipal_ranking_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+    """Spatial links for the municipal ranking (independent of the weights).
+
+    Loaded only when the ranking block runs; cached for the whole server.
+    """
+    paths = [PROCESSED / name for name in ("municipios_ranking_base.parquet", "municipios_hex_pesos.parquet", "municipios_imoveis.parquet")]
+    if not all(path.exists() for path in paths):
+        return None
+    base, hex_weights, farm_municipio = (pd.read_parquet(path) for path in paths)
+    return base, hex_weights, farm_municipio

@@ -84,6 +84,21 @@ desmatamento PRODES a partir de 2021 de 1 ha ou mais fica amarelo, mesmo com
 abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o
 período de maior área. UC/TI permanecem como alertas explícitos para os imóveis.
 
+## Ranking de municípios
+
+Abaixo do mapa geral, o bloco "Ranking de municípios para prospecção" ordena os
+417 municípios pela nota geral média, recalculada com os pesos da barra lateral.
+O vínculo geográfico (hexágono e parcela → município) é pré-calculado:
+
+```bash
+.venv/bin/python scripts/build_municipal_ranking_base.py
+```
+
+Nota territorial: média das notas dos hexágonos ponderada pela área de cada
+hexágono no município. Nota dos imóveis: média das parcelas ponderada pela área;
+cada parcela conta no município que contém a maior parte dela. Ao clicar em um
+município, o mapa geral enquadra o município e destaca seu contorno.
+
 ## Limitações
 
 SIGEF, SNCI e a triagem espacial não comprovam propriedade, regularidade ambiental, concessão de outorga ou elegibilidade para exportação. A aplicação prioriza áreas para diligência comercial e técnica.

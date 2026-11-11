@@ -13,7 +13,9 @@ from webgis.data import (
     load_assessments,
     load_bahia_layers,
     load_farm_detail_lookup,
+    load_municipal_ranking_inputs,
 )
+from webgis.ranking import municipal_ranking
 from webgis.parcel_map import parcel_map
 from webgis.scoring import CRITERIA, TILE_SCORE_FIELDS, potential_class, weighted_score_available
 
@@ -165,6 +167,30 @@ def _farm_search_options(query: str) -> dict[str, str]:
         label = str(row["referencia_exibicao"]) if pd.notna(row["referencia_exibicao"]) else str(identifier)
         options[str(identifier)] = label
     return options
+
+
+def _municipal_focus(cod_mun: int | None) -> dict[str, object] | None:
+    """Bounds, outline and outside-dimming polygon for the selected municipality."""
+    if not cod_mun:
+        return None
+    inputs = load_municipal_ranking_inputs()
+    if inputs is None:
+        return None
+    base = inputs[0]
+    row = base[base["cod_mun"] == int(cod_mun)]
+    if row.empty:
+        return None
+    row = row.iloc[0]
+    import json as _json
+    from shapely.geometry import box as _box, mapping as _mapping, shape as _shape
+    outline = _json.loads(row["contorno_geojson"])
+    dim = _box(-75, -35, -28, 6).difference(_shape(outline))
+    return {
+        "key": f"{int(cod_mun)}",
+        "bounds": [float(row["oeste"]), float(row["sul"]), float(row["leste"]), float(row["norte"])],
+        "outline": {"type": "Feature", "properties": {"municipio": row["municipio"]}, "geometry": outline},
+        "dim": {"type": "Feature", "properties": {}, "geometry": _mapping(dim)},
+    }
 
 
 def apply_hf_layout() -> None:
@@ -384,6 +410,7 @@ else:
             view_state=st.session_state.get("mapa_aptidao_view_state"),
             bahia_mask=bahia_mask,
             bahia_boundary=bahia_boundary,
+            focus=_municipal_focus(st.session_state.get("municipio_foco")),
             key="mapa_aptidao_browser",
         )
         if isinstance(selection_event, dict):
@@ -420,6 +447,118 @@ else:
         <span class="legend-item"><i class="very-high"></i>Muito alto</span></div>''',
         unsafe_allow_html=True,
     )
+
+def _br_number(value: object, places: int = 1) -> str:
+    if value is None or pd.isna(value):
+        return "—"
+    text = f"{float(value):,.{places}f}"
+    return text.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _cached_ranking(weight_items: tuple[tuple[str, int], ...], min_lot_ha: int) -> pd.DataFrame | None:
+    inputs = load_municipal_ranking_inputs()
+    if inputs is None or is_demo:
+        return None
+    base, hex_weights, farm_municipio = inputs
+    return municipal_ranking(data, hex_weights, load_farm_detail_lookup().reset_index(drop=True),
+                             farm_municipio, base, dict(weight_items), float(min_lot_ha))
+
+
+RANKING_CSS = """<style>
+.st-key-ranking_lista [data-testid="stVerticalBlock"] { gap:0 !important; }
+.st-key-ranking_lista [data-testid="stHorizontalBlock"] { border-bottom:1px solid #e6ebf0; padding:.15rem 0; }
+.rk-row { display:grid; grid-template-columns:34px minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1fr); gap:1rem; align-items:center; padding:.55rem .4rem; border-left:3px solid transparent; }
+.rk-row.selected { border-left-color:#0d2743; background:#f3f6f9; }
+.rk-pos { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:600; color:#0d2743; border:1px solid #c9d3dd; }
+.rk-pos.top { background:#0d2743; color:#fff; border-color:#0d2743; }
+.rk-name strong { display:block; color:#0d2743; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rk-name small { color:#657383; font-size:.72rem; }
+.rk-metric { display:grid; grid-template-columns:minmax(0,1fr) 34px; row-gap:.25rem; align-items:center; }
+.rk-metric span { font-size:.68rem; color:#657383; text-transform:uppercase; letter-spacing:.04em; }
+.rk-metric b { font-size:.85rem; color:#0d2743; text-align:right; }
+.rk-metric .criterion-bar { grid-column:1 / span 2; height:6px; }
+.rk-weak span { display:block; font-size:.68rem; color:#657383; text-transform:uppercase; letter-spacing:.04em; }
+.rk-weak em { font-style:normal; font-size:.78rem; color:#40566d; }
+.rk-head { display:grid; grid-template-columns:34px minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1fr); gap:1rem; padding:.2rem .4rem .4rem; font-size:.68rem; color:#8a97a5; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #d5dde5; margin-right:3.2rem; }
+.rk-foot { font-size:.7rem; color:#8a97a5; line-height:1.45; margin-top:.4rem; }
+</style>"""
+
+
+def _rank_bar(label: str, value: object) -> str:
+    if value is None or pd.isna(value):
+        return f'<div class="rk-metric"><span>{label}</span><b>—</b><i class="criterion-bar missing"></i></div>'
+    score = max(0.0, min(100.0, float(value)))
+    color = "#348b4b" if score >= 80 else "#98bf53" if score >= 65 else "#f6cc3f" if score >= 50 else "#eb7a2f" if score >= 35 else "#c5342f"
+    return (f'<div class="rk-metric"><span>{label}</span><b>{_br_number(score)}</b>'
+            f'<i class="criterion-bar"><em style="width:{score:.1f}%;background:{color}"></em></i></div>')
+
+
+with st.expander("Ranking de municípios para prospecção", expanded=False):
+    min_lot = int(st.session_state.get("ranking_lote_min", 1000))
+    ranking = _cached_ranking(tuple(sorted(weights.items())), min_lot)
+    if ranking is None:
+        st.caption("Ranking indisponível: execute scripts/build_municipal_ranking_base.py.")
+    else:
+        st.markdown(RANKING_CSS, unsafe_allow_html=True)
+        focus_cod = st.session_state.get("municipio_foco")
+        top_bar = st.columns([2.4, 2.2, 1.2], vertical_alignment="center")
+        with top_bar[0]:
+            order_by = st.segmented_control("Ordenar por", ["Território", "Imóveis"], default="Território",
+                                            key="ranking_ordem", label_visibility="collapsed")
+        with top_bar[1]:
+            if focus_cod:
+                name = ranking.loc[ranking["cod_mun"] == focus_cod, "municipio"]
+                if st.button(f"{name.iloc[0] if len(name) else 'Município'}  ✕", key="ranking_limpar", type="tertiary",
+                             help="Remover o enquadramento do município no mapa geral"):
+                    st.session_state["municipio_foco"] = None
+                    st.rerun()
+        with top_bar[2]:
+            with st.popover(f"Lote ≥ {_br_number(min_lot, 0)} ha", icon=":material/tune:", use_container_width=True):
+                st.number_input("Tamanho mínimo do lote (ha)", min_value=0, max_value=200_000,
+                                value=min_lot, step=250, key="ranking_lote_min")
+                st.caption("Mostra só municípios com pelo menos um lote certificado desse tamanho. "
+                           "A nota dos imóveis passa a considerar apenas esses lotes. Use 0 para todos os lotes.")
+        sort_column = "nota_imoveis" if order_by == "Imóveis" else "nota_territorial"
+        table = ranking[ranking["lotes_alvo"] > 0].dropna(subset=[sort_column])
+        table = table.sort_values(sort_column, ascending=False).reset_index(drop=True)
+        shown = int(st.session_state.get("ranking_n", 10))
+        lots_label = f"Nota dos lotes ≥ {_br_number(min_lot, 0)} ha" if min_lot > 0 else "Nota dos imóveis"
+        with st.container(key="ranking_lista"):
+            for position, row in enumerate(table.head(shown).itertuples(index=False), start=1):
+                cod = int(row.cod_mun)
+                selected = " selected" if focus_cod == cod else ""
+                top = " top" if position <= 3 else ""
+                if min_lot > 0:
+                    lot_word = "lote" if row.lotes_alvo == 1 else "lotes"
+                    meta = (f"{_br_number(row.lotes_alvo, 0)} {lot_word} ≥ {_br_number(min_lot, 0)} ha "
+                            f"({_br_number(row.area_lotes_alvo_ha, 0)} ha) · {_br_number(row.imoveis, 0)} imóveis no total")
+                else:
+                    meta = f"{_br_number(row.imoveis, 0)} imóveis · {_br_number(row.area_imoveis_ha, 0)} ha"
+                weak = escape(str(row.criterio_mais_fraco)) if isinstance(row.criterio_mais_fraco, str) else "—"
+                html = (f'<div class="rk-row{selected}"><div class="rk-pos{top}">{position}</div>'
+                        f'<div class="rk-name"><strong>{escape(row.municipio)}</strong><small>{meta}</small></div>'
+                        f'{_rank_bar("Nota territorial", row.nota_territorial)}{_rank_bar(lots_label, row.nota_imoveis)}'
+                        f'<div class="rk-weak"><span>Ponto fraco</span><em>{weak}</em></div></div>')
+                line = st.columns([14, 1], vertical_alignment="center")
+                with line[0]:
+                    st.markdown(html, unsafe_allow_html=True)
+                with line[1]:
+                    if st.button("", icon=":material/my_location:", key=f"ranking_ver_{cod}",
+                                 type="primary" if selected else "tertiary", help=f"Enquadrar {row.municipio} no mapa geral"):
+                        st.session_state["municipio_foco"] = cod
+                        st.rerun()
+        foot = st.columns([1.2, 4], vertical_alignment="center")
+        with foot[0]:
+            if shown < len(table) and st.button("Mostrar mais 10", key="ranking_mais", type="tertiary", icon=":material/expand_more:"):
+                st.session_state["ranking_n"] = shown + 10
+                st.rerun()
+        with foot[1]:
+            scope = f"com pelo menos um lote de {_br_number(min_lot, 0)} ha" if min_lot > 0 else "com imóveis certificados"
+            st.markdown(f'<p class="rk-foot">{len(table)} municípios {scope}. '
+                        'Recalculado com os pesos da barra lateral. Território: média dos hexágonos ponderada pela área no município. '
+                        'Imóveis: média dos lotes selecionados ponderada pela área; cada lote conta no município que contém a maior parte dele.</p>',
+                        unsafe_allow_html=True)
 
 with st.expander("Mapas individualizados", expanded=False):
     st.markdown(
@@ -800,6 +939,8 @@ with st.expander("Mapas individualizados", expanded=False):
                 with controls[3]:
                     show_territories = st.toggle("UC e Terras Indígenas", value=False, key="socio_territories")
                 st.caption("A classificação é uma triagem de risco e não comprova conformidade legal, EUDR, titularidade ou autorização de uso.")
+                if show_prodes:
+                    st.caption("PRODES por período aparece a partir de zoom regional (aproxime o mapa com + ou rolagem) para manter o mapa leve.")
                 socio_layers = []
                 if show_socio_hex:
                     socio_layers.extend(
@@ -808,16 +949,16 @@ with st.expander("Mapas individualizados", expanded=False):
                     )
                 if show_prodes:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[50, 139, 75, 50], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[152, 191, 83, 65], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[246, 204, 63, 85], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[52, 139, 75, 190], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[152, 191, 83, 200], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[246, 204, 63, 215], pickable=False),
                     ])
                 if show_embargos:
-                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v2/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
+                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v3/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
                 if show_territories:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
                     ])
                 if bahia_mask:
                     socio_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))

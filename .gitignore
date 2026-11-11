@@ -25,6 +25,9 @@ tmp/*
 !data/processed/bahia_boundary.geojson
 !data/processed/bahia_exterior_mask.geojson
 !data/processed/fazendas_apresentacao_parcelas_detalhe_lookup.parquet
+!data/processed/municipios_ranking_base.parquet
+!data/processed/municipios_hex_pesos.parquet
+!data/processed/municipios_imoveis.parquet
 
 static/*
 !static/hex_base_tiles_v16/
@@ -51,7 +54,7 @@ static/*
 !static/hex_logistica_ilheus_tiles_v4/**
 !static/hex_prodes_embargos_tiles_v2/
 !static/hex_prodes_embargos_tiles_v2/**
-!static/socioambiental_referencias_tiles_v2/
-!static/socioambiental_referencias_tiles_v2/**
+!static/socioambiental_referencias_tiles_v3/
+!static/socioambiental_referencias_tiles_v3/**
 !static/hex_mao_obra_tiles_v1/
 !static/hex_mao_obra_tiles_v1/**

@@ -79,13 +79,16 @@ def main() -> None:
     parser.add_argument("--prodes-raster", type=Path, default=ROOT / "data" / "interim" / "prodes_periodo_bahia_240m.tif",
                         help="Raster de período dominante (240 m) gerado por build_prodes_raster_stats.py.")
     parser.add_argument("--only-prodes", action="store_true")
+    parser.add_argument("--no-prodes", action="store_true")
     args = parser.parse_args()
-    prodes = prodes_from_raster(args.prodes_raster)
-    layers = {
-        "prodes_ate_2008": prodes[prodes.periodo.eq("pre2008")],
-        "prodes_2009_2020": prodes[prodes.periodo.eq("2009_2020")],
-        "prodes_pos_2020": prodes[prodes.periodo.eq("post2020")],
-    }
+    layers = {}
+    if not args.no_prodes:
+        prodes = prodes_from_raster(args.prodes_raster)
+        layers.update({
+            "prodes_ate_2008": prodes[prodes.periodo.eq("pre2008")],
+            "prodes_2009_2020": prodes[prodes.periodo.eq("2009_2020")],
+            "prodes_pos_2020": prodes[prodes.periodo.eq("post2020")],
+        })
     if not args.only_prodes:
         layers.update({
         "embargos_ibama": gpd.read_parquet(args.raw / "embargos_ibama_poligonal_vigente_bahia.geoparquet"),
