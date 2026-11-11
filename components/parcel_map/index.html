@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html, body, #map { width:100%; height:640px; margin:0; overflow:hidden; background:#eef1f3; }
+    .maplibregl-ctrl-attrib { font:10px/14px sans-serif; opacity:.7; }
+    .deck-tooltip { font-family:Inter,Aptos,"Segoe UI",sans-serif!important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
+  <script>
+    const state = { map: null, overlay: null, args: null, selectedId: "", selectedFeature: null, view: null };
+    const COLORS = { veryLow:[197,52,47,255], low:[235,122,47,255], medium:[246,204,63,255], high:[152,191,83,255], veryHigh:[52,139,75,255] };
+    const scoreKeys = ["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus"];
+
+    function props(obj) { return (obj && obj.properties) || obj || {}; }
+    function colorFor(object) {
+      const p = props(object), w = state.args.weights || {};
+      let numerator = 0, denominator = 0;
+      scoreKeys.forEach((key, i) => { const s = Number(p[`s${i}`]); const weight = Number(w[key] || 0); if (s >= 0 && weight > 0) { numerator += s * weight; denominator += weight; } });
+      if (!denominator) return [196,202,208,185];
+      const score = numerator / denominator;
+      if (score < 35) return [197,52,47,185];
+      if (score < 50) return [235,122,47,185];
+      if (score < 65) return [246,204,63,185];
+      if (score < 80) return [152,191,83,185];
+      return [52,139,75,185];
+    }
+    function featureId(object) { const p = props(object); return String(p.farm_id || p.id || ""); }
+    function clickedFeature(object) {
+      if (!object) return null;
+      const geometry = object.geometry || (object.type && object.coordinates ? { type:object.type, coordinates:object.coordinates } : null);
+      if (!geometry) return null;
+      return { type:"Feature", properties:props(object), geometry };
+    }
+    function lineFor(object) { return featureId(object) === state.selectedId ? [13,39,67,255] : [74,94,112,205]; }
+    function widthFor(object) { return featureId(object) === state.selectedId ? 3.2 : 0.8; }
+    function tooltip(info) {
+      if (!info || !info.object || info.layer?.id !== "parcel-visual") return null;
+      const p = props(info.object); return { html:`<b>${p.referencia_exibicao || p.id}</b><br/>Área: ${p.area_ha ?? "—"} ha`, style:{background:"#243241",color:"#dbe2ec",fontSize:"15px",padding:"11px 14px",borderRadius:"2px"} };
+    }
+    function currentView() {
+      const c = state.map.getCenter(); return { latitude:c.lat, longitude:c.lng, zoom:state.map.getZoom(), bearing:state.map.getBearing(), pitch:state.map.getPitch() };
+    }
+    function send(type, data) {
+      window.parent.postMessage({ isStreamlitMessage:true, type, ...data }, "*");
+    }
+    function layers() {
+      const a = state.args;
+      // MVT data stays cached while the analyst moves a slider.  Deck.gl only
+      // rebuilds an accessor attribute when its update trigger changes; this
+      // token makes the virtual score recolour every already-loaded tile
+      // without downloading geometry again or moving the map.
+      const weightToken = JSON.stringify(a.weights || {});
+      const result = [];
+      if (a.bahia_mask) result.push(new deck.GeoJsonLayer({ id:"mask", data:a.bahia_mask, filled:true, stroked:false, getFillColor:[238,240,242,205], pickable:false }));
+      result.push(new deck.MVTLayer({
+        id:"hex-base", data:a.hex_tiles, minZoom:4, maxZoom:7, filled:true, stroked:false,
+        getFillColor:colorFor, pickable:false,
+        updateTriggers:{getFillColor:weightToken}
+      }));
+      result.push(new deck.MVTLayer({
+        id:"parcel-visual", data:a.parcel_tiles, minZoom:7, maxZoom:9, filled:true, stroked:true,
+        getFillColor:colorFor, getLineColor:lineFor, getLineWidth:widthFor, lineWidthUnits:"pixels", lineWidthMinPixels:.8,
+        uniqueIdProperty:"farm_id", pickable:true, autoHighlight:false,
+        updateTriggers:{getFillColor:weightToken, getLineColor:state.selectedId, getLineWidth:state.selectedId},
+        onClick: info => {
+          const id = featureId(info.object); if (!id) return;
+          // Keep the exact clicked geometry only for presentation. The
+          // analytical / master parcel dataset is never modified.
+          state.selectedId = id;
+          state.selectedFeature = clickedFeature(info.object);
+          state.view = currentView();
+          state.overlay.setProps({layers:layers()});
+          send("streamlit:setComponentValue", { value:{ id, view_state:state.view } });
+        }
+      }));
+      // A dedicated non-pickable selection outline is kept above every
+      // thematic layer. Its geometry is the same parcel geometry that was
+      // clicked; no centroid or tile-local selected index is involved.
+      result.push(new deck.MVTLayer({
+        id:"parcel-selection-outline", data:a.parcel_tiles, minZoom:7, maxZoom:9,
+        filled:false, stroked:true, pickable:false,
+        getLineColor: object => featureId(object) === state.selectedId ? [7,45,86,255] : [0,0,0,0],
+        getLineWidth: object => featureId(object) === state.selectedId ? 4.5 : 0,
+        lineWidthUnits:"pixels", lineWidthMinPixels:0,
+        updateTriggers:{getLineColor:state.selectedId, getLineWidth:state.selectedId}
+      }));
+      // The clicked geometry receives a final outline above the tiled layer.
+      // This bypasses tile-local feature indices and never changes map view.
+      if (state.selectedFeature) result.push(new deck.GeoJsonLayer({
+        id:"clicked-parcel-exact-outline", data:state.selectedFeature,
+        filled:false, stroked:true, pickable:false,
+        getLineColor:[7,45,86,255], getLineWidth:4.5,
+        lineWidthUnits:"pixels", lineWidthMinPixels:4.5
+      }));
+      if (a.bahia_boundary) result.push(new deck.GeoJsonLayer({ id:"boundary", data:a.bahia_boundary, filled:false, stroked:true, getLineColor:[13,39,67,255], lineWidthMinPixels:2.5, pickable:false }));
+      return result;
+    }
+    function initialize(args) {
+      state.args = args; state.selectedId = args.active_id || ""; state.view = args.view_state;
+      state.map = new maplibregl.Map({ container:"map", style:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", center:[state.view.longitude,state.view.latitude], zoom:state.view.zoom, bearing:state.view.bearing || 0, pitch:state.view.pitch || 0 });
+      state.map.addControl(new maplibregl.NavigationControl(), "top-right");
+      state.map.on("load", () => { state.overlay = new deck.MapboxOverlay({ interleaved:false, layers:layers(), getTooltip:tooltip }); state.map.addControl(state.overlay); });
+    }
+    function render(args) {
+      if (!state.map) { initialize(args); return; }
+      state.args = args;
+      if (args.active_id && args.active_id !== state.selectedId) {
+        state.selectedId = args.active_id;
+        state.selectedFeature = null;
+      }
+      if (state.overlay) state.overlay.setProps({layers:layers(), getTooltip:tooltip});
+    }
+    window.addEventListener("message", event => { const d = event.data; if (d?.type === "streamlit:render") render(d.args || {}); });
+    send("streamlit:componentReady", { apiVersion:1 });
+    send("streamlit:setFrameHeight", { height:640 });
+  </script>
+</body>
+</html>

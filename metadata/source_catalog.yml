@@ -1,0 +1,28 @@
+schema_version: 1
+criteria:
+  tipo_solo:
+    source_key: mapbiomas_solo_c3_0_30cm+ibge_pedologia_250k
+    method_version: QUALIDADE_FISICA_SOLO_v2
+    sources:
+      - MapBiomas Solo Coleção 3, grupamento textural 0–30 cm
+      - IBGE Pedologia, Mapeamento de Recursos Naturais 1:250.000
+    limitation: "Triagem regional; não substitui levantamento pedológico e topográfico na propriedade."
+  relevo_drenagem:
+    source_key: copernicus_dem_glo30_30m
+    method_version: DECLIVIDADE_RELEVO_V1_COPDEM30
+    sources:
+      - Copernicus DEM GLO-30, declividade derivada por tile nativo
+    limitation: "Mede declividade e contexto topográfico operacional; não representa disponibilidade hídrica ou drenagem."
+  clima_irrigacao:
+    source_key: chirps_precipitation+era5_land_atmosphere
+    method_version: CLIMA_IRRIGACAO_V1_PENDING_INGESTION
+    sources:
+      - CHIRPS v3 final, precipitação e sazonalidade (0,05°)
+      - ERA5-Land, temperatura, umidade, vento e radiação para ET0 FAO-56 (0,1°)
+      - INMET, controle regional de qualidade por estações
+    limitation: "Mede condição atmosférica e demanda climática de irrigação; não mede vazão, outorga, qualidade da água ou segurança de abastecimento."
+  seguranca_hidrica: { status: pending }
+  custo_terra: { status: pending }
+  mao_obra_infra: { status: pending }
+  risco_socioambiental: { status: pending }
+  logistica_ilheus: { status: pending }

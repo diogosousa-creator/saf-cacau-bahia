@@ -1,0 +1,11 @@
+streamlit>=1.40
+pandas>=2.2
+numpy>=1.26
+pydeck>=0.9
+geopandas>=1.0
+rasterio>=1.4
+shapely>=2.0
+pyarrow>=16
+mapbox-vector-tile>=2.2
+mercantile>=1.2
+pypdf>=5.0

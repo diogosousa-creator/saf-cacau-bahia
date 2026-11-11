@@ -1,0 +1,11 @@
+[server]
+enableStaticServing = true
+
+[theme]
+primaryColor = "#0d2743"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f9f9f9"
+textColor = "#0d2743"
+# Evita os acentos vermelhos/laranjas padrão em controles do Streamlit.
+redColor = "#0d2743"
+orangeColor = "#0d2743"

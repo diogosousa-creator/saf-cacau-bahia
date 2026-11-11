@@ -1,0 +1,55 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Dados e artefatos locais
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+tmp/*
+!tmp/.gitkeep
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Publicação WebGIS: somente os artefatos compactos efetivamente servidos pelo
+# aplicativo. As fontes brutas, versões históricas e geometrias analíticas
+# completas permanecem locais.
+!data/processed/assessments.parquet
+!data/processed/bahia_boundary.geojson
+!data/processed/bahia_exterior_mask.geojson
+!data/processed/fazendas_apresentacao_parcelas_detalhe_lookup.parquet
+
+static/*
+!static/hex_base_tiles_v15/
+!static/hex_base_tiles_v15/**
+!static/imoveis_apresentacao_parcelas_tiles_v23/
+!static/imoveis_apresentacao_parcelas_tiles_v23/**
+!static/hex_soil_tiles_v6/
+!static/hex_soil_tiles_v6/**
+!static/solo_relevo_referencias_tiles_v1/
+!static/solo_relevo_referencias_tiles_v1/**
+!static/hex_relief_tiles_v1/
+!static/hex_relief_tiles_v1/**
+!static/hex_climate_tiles_v1/
+!static/hex_climate_tiles_v1/**
+!static/hex_climate_referencias_tiles_v1/
+!static/hex_climate_referencias_tiles_v1/**
+!static/hex_water_security_tiles_v8/
+!static/hex_water_security_tiles_v8/**
+!static/hidrica_referencias_tiles_v3/
+!static/hidrica_referencias_tiles_v3/**
+!static/hex_custo_terra_tiles_v1/
+!static/hex_custo_terra_tiles_v1/**
+!static/hex_logistica_ilheus_tiles_v4/
+!static/hex_logistica_ilheus_tiles_v4/**
+!static/hex_prodes_embargos_tiles_v1/
+!static/hex_prodes_embargos_tiles_v1/**
+!static/socioambiental_referencias_tiles_v1/
+!static/socioambiental_referencias_tiles_v1/**
+!static/hex_mao_obra_tiles_v1/
+!static/hex_mao_obra_tiles_v1/**
