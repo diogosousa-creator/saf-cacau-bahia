@@ -50,22 +50,48 @@ def write_layer(name: str, frame: gpd.GeoDataFrame, output: Path, minzoom: int, 
     return made
 
 
+def prodes_from_raster(path: Path) -> gpd.GeoDataFrame:
+    """Polygonize the 240 m dominant-period raster (visual reference only)."""
+    import rasterio
+    from rasterio.features import shapes, sieve
+    from shapely.geometry import shape
+
+    with rasterio.open(path) as src:
+        data = src.read(1)
+        # Remove isolated single cells: they are not legible at the map scale
+        # and the analytical areas are computed separately from the 30 m raster.
+        data = sieve(data, size=2, connectivity=8)
+        periods = {1: "pre2008", 2: "2009_2020", 3: "post2020"}
+        records = [
+            {"periodo": periods[int(value)], "geometry": shape(geom)}
+            for geom, value in shapes(data, mask=data > 0, transform=src.transform, connectivity=8)
+            if int(value) in periods
+        ]
+        return gpd.GeoDataFrame(records, geometry="geometry", crs=src.crs)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw", type=Path, default=ROOT / "data" / "raw" / "socioambiental")
     parser.add_argument("--output", type=Path, default=ROOT / "static" / "socioambiental_referencias_tiles_v1")
     parser.add_argument("--minzoom", type=int, default=7)
     parser.add_argument("--maxzoom", type=int, default=9)
+    parser.add_argument("--prodes-raster", type=Path, default=ROOT / "data" / "interim" / "prodes_periodo_bahia_240m.tif",
+                        help="Raster de período dominante (240 m) gerado por build_prodes_raster_stats.py.")
+    parser.add_argument("--only-prodes", action="store_true")
     args = parser.parse_args()
-    prodes = gpd.read_parquet(args.raw / "prodes_incrementos_bahia.geoparquet")
+    prodes = prodes_from_raster(args.prodes_raster)
     layers = {
         "prodes_ate_2008": prodes[prodes.periodo.eq("pre2008")],
         "prodes_2009_2020": prodes[prodes.periodo.eq("2009_2020")],
         "prodes_pos_2020": prodes[prodes.periodo.eq("post2020")],
+    }
+    if not args.only_prodes:
+        layers.update({
         "embargos_ibama": gpd.read_parquet(args.raw / "embargos_ibama_poligonal_vigente_bahia.geoparquet"),
         "unidades_conservacao": gpd.read_parquet(args.raw / "unidades_conservacao_cnuc_bahia.geoparquet"),
         "terras_indigenas": gpd.read_parquet(args.raw / "terras_indigenas_funai_bahia.geoparquet"),
-    }
+        })
     for name, frame in layers.items():
         print(f"{name}: {write_layer(name, frame, args.output, args.minzoom, args.maxzoom):,} tiles", flush=True)
 

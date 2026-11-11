@@ -53,29 +53,36 @@ Sem dados processados, o aplicativo abre em modo demonstração, com valores exp
 
 ## PRODES e embargos
 
-O processamento socioambiental usa geometrias analíticas e exige, em
-`data/raw/socioambiental/`, os seguintes recortes oficiais da Bahia:
+O PRODES vem dos rasters oficiais 30 m do INPE/TerraBrasilis por bioma
+(Caatinga, Cerrado e Mata Atlântica), salvos em
+`data/raw/socioambiental/prodes_raster/` com seus arquivos `.qml` de legenda.
+Embargos, UC e TI ficam em `data/raw/socioambiental/`:
 
 ```text
-prodes_incrementos_bahia.geoparquet
 embargos_ibama_poligonal_vigente_bahia.geoparquet
 embargos_ibama_pontual_bahia.geoparquet
 unidades_conservacao_cnuc_bahia.geoparquet
 terras_indigenas_funai_bahia.geoparquet
 ```
 
-Após a conferência de data, vigência e atributos das fontes, execute:
+Processamento:
 
 ```bash
-.venv/bin/python scripts/ingest_prodes_embargos.py
+.venv/bin/python scripts/build_prodes_raster_bahia.py   # mosaico Bahia 30 m
+.venv/bin/python scripts/build_prodes_raster_stats.py   # área por período em hexágonos e imóveis
+.venv/bin/python scripts/ingest_prodes_embargos.py --reuse-restrictions
 ```
 
 Hexágonos ficam vermelhos quando a união de embargo poligonal vigente, UC e
 TI alcança 50% ou mais de sua área; qualquer interseção menor fica laranja.
+Sem restrição, a classe temporal é o período PRODES de maior área (até 2008,
+2009–2020 ou a partir de 2021).
+
 Em imóveis certificados, qualquer toque de embargo poligonal vigente fica
-vermelho e embargo pontual fica laranja, sem buffer. Em ausência de embargo,
-a classe temporal PRODES é definida pela maior área entre até 2008, 2009–2020
-e após 2020. UC/TI permanecem como alertas explícitos para os imóveis.
+vermelho e embargo pontual fica laranja, sem buffer. Em seguida, qualquer
+desmatamento PRODES a partir de 2021 de 1 ha ou mais fica amarelo, mesmo com
+abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o
+período de maior área. UC/TI permanecem como alertas explícitos para os imóveis.
 
 ## Limitações
 

@@ -26,8 +26,8 @@ def parcel_map(*, weights: dict[str, int], active_id: str | None, view_state: di
         view_state=view_state or {"latitude": -12.6, "longitude": -41.7, "zoom": 5.15, "bearing": 0, "pitch": 0},
         bahia_mask=bahia_mask,
         bahia_boundary=bahia_boundary,
-        hex_tiles="/app/static/hex_base_tiles_v15/{z}/{x}/{y}.pbf",
-        parcel_tiles="/app/static/imoveis_apresentacao_parcelas_tiles_v23/{z}/{x}/{y}.pbf",
+        hex_tiles="/app/static/hex_base_tiles_v16/{z}/{x}/{y}.pbf",
+        parcel_tiles="/app/static/imoveis_apresentacao_parcelas_tiles_v24/{z}/{x}/{y}.pbf",
         default=None,
         key=key,
     )

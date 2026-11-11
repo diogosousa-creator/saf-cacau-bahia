@@ -803,21 +803,21 @@ with st.expander("Mapas individualizados", expanded=False):
                 socio_layers = []
                 if show_socio_hex:
                     socio_layers.extend(
-                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
+                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v2/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
                 if show_prodes:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[50, 139, 75, 50], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[152, 191, 83, 65], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[246, 204, 63, 85], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[50, 139, 75, 50], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[152, 191, 83, 65], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[246, 204, 63, 85], pickable=False),
                     ])
                 if show_embargos:
-                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v1/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
+                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v2/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
                 if show_territories:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v2/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
                     ])
                 if bahia_mask:
                     socio_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
@@ -835,7 +835,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     socio_reference_legend.extend(['<span class="legend-item"><i class="uc"></i>Unidade de Conservação</span>', '<span class="legend-item"><i class="ti"></i>Terra Indígena</span>'])
                 if socio_reference_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(socio_reference_legend)}</div>', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> restrições são verificadas primeiro. Em hexágonos, embargo poligonal vigente, UC ou TI cobrindo 50% ou mais da área gera vermelho; contato menor ou embargo pontual gera laranja. Em imóveis, qualquer contato com embargo poligonal gera vermelho. Sem restrição, vale o período PRODES com maior área.<br/><b>Leitura das cores:</b> verde-escuro até 2008; verde-claro 2009–2020; amarelo a partir de 2021; laranja diligência; vermelho restrição crítica. Fontes: INPE, Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> restrições são verificadas primeiro. Em hexágonos, embargo poligonal vigente, UC ou TI cobrindo 50% ou mais da área gera vermelho; contato menor ou embargo pontual gera laranja. Em imóveis, qualquer contato com embargo poligonal gera vermelho e embargo pontual gera laranja; em seguida, desmatamento PRODES a partir de 2021 de 1 ha ou mais gera amarelo, mesmo com abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o período PRODES com maior área.<br/><b>Leitura das cores:</b> verde-escuro até 2008; verde-claro 2009–2020; amarelo abertura a partir de 2021 (predominante no hexágono; ≥1 ha no imóvel); laranja diligência; vermelho restrição crítica. Fontes: INPE (PRODES raster 30 m, 2025–2026), Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
         elif map_title == "Mão de obra" and not is_demo and data["mao_obra_infra"].notna().any():
             with st.expander("Mão de obra", expanded=False):
                 st.markdown('<p class="soil-description">Disponibilidade relativa de mão de obra rural por município.</p>', unsafe_allow_html=True)

@@ -92,7 +92,7 @@ def has_georeferenced_farms() -> bool:
     Streamlit rerun.  The active version is immutable and its directory is the
     availability contract; geometry remains loaded by viewport only in deck.gl.
     """
-    tiles = ROOT / "static" / "imoveis_apresentacao_parcelas_tiles_v23"
+    tiles = ROOT / "static" / "imoveis_apresentacao_parcelas_tiles_v24"
     return tiles.is_dir() and any(tiles.iterdir())
 
 

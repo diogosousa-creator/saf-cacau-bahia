@@ -28,6 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw" / "socioambiental"
 PROCESSED = ROOT / "data" / "processed"
 METRIC_CRS = "EPSG:5880"
+# Área mínima mapeada pelo PRODES (ha) usada na regra EUDR dos imóveis.
+EUDR_MIN_POST2020_HA = 1.0
 
 # Incrementos devem ser mutuamente exclusivos. A área acumulada até 2000,
 # quando usada, deve chegar já marcada como ``year=2000``.
@@ -235,19 +237,26 @@ def classify_farms(table: pd.DataFrame) -> pd.DataFrame:
     # Certified properties: only an active polygonal federal embargo changes
     # to red by any touch. UC/TI evidence remains explicit metadata/alert,
     # following the business rule supplied for this property-level view.
+    # EUDR (Regulamento UE 2023/1115): o marco é 31/12/2020.  Qualquer
+    # desmatamento PRODES a partir de 2021 igual ou acima da área mínima
+    # mapeada (1 ha) leva o imóvel a amarelo, mesmo que a abertura antiga seja
+    # predominante.  Regra exclusiva dos imóveis; hexágonos mantêm a
+    # predominância.
+    eudr_recent = result["prodes_post2020_ha"].fillna(0).ge(EUDR_MIN_POST2020_HA)
     result["classe_prodes_embargos"] = np.select(
-        [result["embargo_intersecao_ha"].gt(0), result["embargo_pontual_qtd"].gt(0)],
-        ["Vermelho", "Laranja"],
+        [result["embargo_intersecao_ha"].gt(0), result["embargo_pontual_qtd"].gt(0), eudr_recent],
+        ["Vermelho", "Laranja", "Amarelo"],
         default=temporal,
     )
     result["risco_socioambiental"] = _score_for_class(result["classe_prodes_embargos"])
-    result["prodes_embargos_regra"] = "IMOVEL_V1_EMBARGO_POLIGONAL_QUALQUER_TOQUE"
+    result["prodes_embargos_regra"] = "IMOVEL_V2_EMBARGO_E_EUDR_POS2020_1HA"
     return result
 
 
 def _attach(base: pd.DataFrame, stats: pd.DataFrame, base_id: str, stats_id: str, classifier) -> pd.DataFrame:
     fields = [
         *[f"prodes_{period}_ha" for period in PERIODS],
+        "prodes_vegetacao_nativa_ha", "prodes_hidrografia_ha", "prodes_nao_observado_ha", "prodes_outros_ha", "prodes_area_mapeada_ha",
         "embargo_intersecao_ha", "embargo_intersecao_pct", "uc_intersecao_ha", "uc_intersecao_pct",
         "ti_intersecao_ha", "ti_intersecao_pct", "restricao_unida_ha", "restricao_unida_pct",
         "embargo_pontual_qtd", "classe_prodes_embargos", "risco_socioambiental", "prodes_embargos_regra",
@@ -264,8 +273,8 @@ def _attach(base: pd.DataFrame, stats: pd.DataFrame, base_id: str, stats_id: str
     result["risco_socioambiental_confidence"] = np.where(
         result["risco_socioambiental_status"].eq("complete"), "medium", "low"
     )
-    result["risco_socioambiental_source_key"] = "prodes_inpe+embargos_ibama_pamgia+cnuc_mma+funai"
-    result["risco_socioambiental_method_version"] = "PRODES_EMBARGOS_V1"
+    result["risco_socioambiental_source_key"] = "prodes_inpe_raster_2025_2026+embargos_ibama_pamgia+cnuc_mma+funai"
+    result["risco_socioambiental_method_version"] = "PRODES_EMBARGOS_V2_RASTER30M"
     def flags(row: pd.Series) -> str:
         values = []
         if row["embargo_intersecao_ha"] > 0: values.append("embargo_ibama_poligonal")
@@ -281,25 +290,51 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--processed", type=Path, default=PROCESSED)
     parser.add_argument("--raw", type=Path, default=RAW)
+    parser.add_argument("--vector-prodes", action="store_true",
+                        help="Usa a preparação vetorial antiga (WFS/Marco UE) em vez do raster oficial 30 m.")
+    parser.add_argument("--reuse-restrictions", action="store_true",
+                        help="Reaproveita embargo/UC/TI já calculados nos arquivos *_stats.parquet.")
     args = parser.parse_args()
     raw = args.raw
-    prodes = _read(raw / "prodes_incrementos_bahia.geoparquet")
-    embargo_polygons = _read(raw / "embargos_ibama_poligonal_vigente_bahia.geoparquet")
-    embargo_points = _read(raw / "embargos_ibama_pontual_bahia.geoparquet")
-    ucs = _read(raw / "unidades_conservacao_cnuc_bahia.geoparquet")
-    tis = _read(raw / "terras_indigenas_funai_bahia.geoparquet")
 
     hexes = gpd.read_file(args.processed / "bahia_hex_5km.geojson").to_crs(METRIC_CRS)
     farms = gpd.read_parquet(args.processed / "fazendas_georeferenciadas.geoparquet").to_crs(METRIC_CRS)
     assessments = pd.read_parquet(args.processed / "assessments.parquet")
 
-    def make_stats(units: gpd.GeoDataFrame, id_field: str) -> pd.DataFrame:
-        return prodes_area_stats(units, id_field, prodes).merge(
-            _restriction_stats(units, id_field, embargo_polygons, ucs, tis, embargo_points), on=id_field, how="left", validate="one_to_one"
+    restriction_fields = [
+        "embargo_intersecao_ha", "embargo_intersecao_pct", "uc_intersecao_ha", "uc_intersecao_pct",
+        "ti_intersecao_ha", "ti_intersecao_pct", "restricao_unida_ha", "restricao_unida_pct", "embargo_pontual_qtd",
+    ]
+
+    def restrictions(units: gpd.GeoDataFrame, id_field: str, previous: str) -> pd.DataFrame:
+        if args.reuse_restrictions:
+            old = pd.read_parquet(args.processed / previous, columns=[id_field, *restriction_fields])
+            old[id_field] = old[id_field].astype(str)
+            missing = set(units[id_field].astype(str)) - set(old[id_field])
+            if missing:
+                raise RuntimeError(f"{previous}: {len(missing):,} unidades sem restrição calculada.")
+            return old
+        return _restriction_stats(
+            units, id_field,
+            _read(raw / "embargos_ibama_poligonal_vigente_bahia.geoparquet"),
+            _read(raw / "unidades_conservacao_cnuc_bahia.geoparquet"),
+            _read(raw / "terras_indigenas_funai_bahia.geoparquet"),
+            _read(raw / "embargos_ibama_pontual_bahia.geoparquet"),
         )
 
-    hex_stats = make_stats(hexes, "id_hex")
-    farm_stats = make_stats(farms, "id_fazenda")
+    def prodes_stats(units: gpd.GeoDataFrame, id_field: str, raster_file: str) -> pd.DataFrame:
+        if args.vector_prodes:
+            return prodes_area_stats(units, id_field, _read(raw / "prodes_incrementos_bahia.geoparquet"))
+        stats = pd.read_parquet(args.processed / raster_file)
+        stats[id_field] = stats[id_field].astype(str)
+        if len(stats) != len(units) or set(stats[id_field]) != set(units[id_field].astype(str)):
+            raise RuntimeError(f"{raster_file} não corresponde às unidades atuais.")
+        return stats
+
+    hex_stats = prodes_stats(hexes, "id_hex", "prodes_raster_hex_stats.parquet").merge(
+        restrictions(hexes, "id_hex", "prodes_embargos_hex_stats.parquet"), on="id_hex", how="left", validate="one_to_one")
+    farm_stats = prodes_stats(farms, "id_fazenda", "prodes_raster_fazendas_stats.parquet").merge(
+        restrictions(farms, "id_fazenda", "prodes_embargos_fazendas_stats.parquet"), on="id_fazenda", how="left", validate="one_to_one")
     out_hex = _attach(assessments.rename(columns={"id": "id_hex"}), hex_stats, "id_hex", "id_hex", classify_hexes).rename(columns={"id_hex": "id"})
     out_farms = _attach(farms, farm_stats, "id_fazenda", "id_fazenda", classify_farms)
     timestamp = datetime.now(timezone.utc).isoformat()
