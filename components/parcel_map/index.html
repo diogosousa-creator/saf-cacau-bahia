@@ -29,7 +29,13 @@
     function streamlitAssetUrl(path) {
       const base = new URLSearchParams(window.location.search).get("streamlitUrl");
       if (!base) return path;
-      return new URL(String(path).replace(/^\//, ""), base.endsWith("/") ? base : `${base}/`).toString();
+      // URL() correctly resolves the Cloud prefix, but percent-encodes the
+      // Deck.gl placeholders. Restore only these three template tokens so
+      // MVTLayer can substitute the active z/x/y tile coordinates.
+      return new URL(String(path).replace(/^\//, ""), base.endsWith("/") ? base : `${base}/`)
+        .toString()
+        .replace(/%7B/gi, "{")
+        .replace(/%7D/gi, "}");
     }
     function colorFor(object) {
       const p = props(object), w = state.args.weights || {};
