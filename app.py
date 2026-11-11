@@ -6,6 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+from pydeck.bindings.layer import Layer as _PYDECK_LAYER
 
 from webgis.data import (
     has_georeferenced_farms,
@@ -46,23 +47,22 @@ def _streamlit_static_tile_url(tile_path: str) -> str:
     return f"{base}/{tile_path.lstrip('/')}"
 
 
-# Streamlit reruns this module on every widget interaction while preserving
-# imported modules. Store the original constructor on the PyDeck module once;
-# otherwise a subsequent rerun would wrap the wrapper recursively.
-if not hasattr(pdk, "_webgis_original_layer"):
-    pdk._webgis_original_layer = pdk.Layer
-_PYDECK_LAYER = pdk._webgis_original_layer
-
-
-def _webgis_layer(layer_type: str, data: object = None, *args: object, **kwargs: object) -> object:
+def _webgis_layer(
+    layer_type: str,
+    data: object = None,
+    *args: object,
+    _factory: type = _PYDECK_LAYER,
+    **kwargs: object,
+) -> object:
     """Normalize only MVT static paths used by the individual thematic maps."""
     if layer_type == "MVTLayer" and isinstance(data, str) and data.startswith("app/static/"):
         data = _streamlit_static_tile_url(data)
-    return _PYDECK_LAYER(layer_type, data, *args, **kwargs)
+    return _factory(layer_type, data, *args, **kwargs)
 
 
 # Keep all existing layer declarations compact while applying the URL fix to
 # every individual-map source (soil, relief, climate, water, logistics, etc.).
+# The binding-module constructor above remains stable across Streamlit reruns.
 pdk.Layer = _webgis_layer
 
 
