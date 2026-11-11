@@ -6,7 +6,6 @@ from urllib.parse import urlsplit, urlunsplit
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
-from pydeck.bindings.layer import Layer as _PYDECK_LAYER
 
 from webgis.data import (
     has_georeferenced_farms,
@@ -47,23 +46,9 @@ def _streamlit_static_tile_url(tile_path: str) -> str:
     return f"{base}/{tile_path.lstrip('/')}"
 
 
-def _webgis_layer(
-    layer_type: str,
-    data: object = None,
-    *args: object,
-    _factory: type = _PYDECK_LAYER,
-    **kwargs: object,
-) -> object:
-    """Normalize only MVT static paths used by the individual thematic maps."""
-    if layer_type == "MVTLayer" and isinstance(data, str) and data.startswith("app/static/"):
-        data = _streamlit_static_tile_url(data)
-    return _factory(layer_type, data, *args, **kwargs)
-
-
-# Keep all existing layer declarations compact while applying the URL fix to
-# every individual-map source (soil, relief, climate, water, logistics, etc.).
-# The binding-module constructor above remains stable across Streamlit reruns.
-pdk.Layer = _webgis_layer
+def _mvt_layer(tile_path: str, **kwargs: object) -> pdk.Layer:
+    """Create an individual-map MVT layer with a Cloud-safe static URL."""
+    return pdk.Layer("MVTLayer", _streamlit_static_tile_url(tile_path), **kwargs)
 
 
 def virtual_fill_expression(weights: dict[str, int], alpha: int = 185) -> str:
@@ -458,8 +443,8 @@ with st.expander("Mapas individualizados", expanded=False):
                 soil_layers = []
                 if show_soil_score:
                     soil_layers.extend(
-                        pdk.Layer(
-                            "MVTLayer", f"app/static/hex_soil_tiles_v6/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        _mvt_layer(
+                            f"app/static/hex_soil_tiles_v6/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, wireframe=False,
                             get_fill_color=color, get_line_color=[0, 0, 0, 0], get_line_width=0,
                             line_width_min_pixels=0, line_width_max_pixels=0, pickable=True,
@@ -475,8 +460,8 @@ with st.expander("Mapas individualizados", expanded=False):
                         4: [41, 130, 137, 210], 5: [255, 254, 115, 210], 6: [215, 197, 165, 210],
                     }
                     for category, color in texture_colors.items():
-                        soil_layers.append(pdk.Layer(
-                            "MVTLayer", f"app/static/hex_soil_tiles_v6/raw/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        soil_layers.append(_mvt_layer(
+                            f"app/static/hex_soil_tiles_v6/raw/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True,
                         ))
                 if show_soil_pedology:
@@ -498,8 +483,8 @@ with st.expander("Mapas individualizados", expanded=False):
                         "organossolo": [103, 125, 102, 205], "outras_unidades": [190, 190, 190, 195],
                     }
                     for group, color in pedology_colors.items():
-                        soil_layers.append(pdk.Layer(
-                            "MVTLayer", f"app/static/solo_relevo_referencias_tiles_v1/pedologia_ibge/{group}/{{z}}/{{x}}/{{y}}.pbf",
+                        soil_layers.append(_mvt_layer(
+                            f"app/static/solo_relevo_referencias_tiles_v1/pedologia_ibge/{group}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=5, max_zoom=7, filled=True, stroked=True,
                             get_fill_color=color, get_line_color=[90, 93, 92, 185],
                             line_width_units="pixels", line_width_min_pixels=0.45, pickable=True,
@@ -567,8 +552,8 @@ with st.expander("Mapas individualizados", expanded=False):
                 relief_layers = []
                 if show_relief_score:
                     relief_layers.extend(
-                        pdk.Layer(
-                            "MVTLayer", f"app/static/hex_relief_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        _mvt_layer(
+                            f"app/static/hex_relief_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False,
                             get_fill_color=color, pickable=True,
                         )
@@ -580,8 +565,8 @@ with st.expander("Mapas individualizados", expanded=False):
                         4: [235, 122, 47, 190], 5: [197, 52, 47, 190],
                     }
                     for category, color in slope_colors.items():
-                        relief_layers.append(pdk.Layer(
-                            "MVTLayer", f"app/static/solo_relevo_referencias_tiles_v1/declividade_media/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        relief_layers.append(_mvt_layer(
+                            f"app/static/solo_relevo_referencias_tiles_v1/declividade_media/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=6, filled=True, stroked=False, get_fill_color=color, pickable=True,
                         ))
                 if bahia_mask:
@@ -622,8 +607,8 @@ with st.expander("Mapas individualizados", expanded=False):
                 climate_layers = []
                 if show_climate_score:
                     climate_layers.extend(
-                        pdk.Layer(
-                            "MVTLayer", f"app/static/hex_climate_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        _mvt_layer(
+                            f"app/static/hex_climate_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False,
                             get_fill_color=color, pickable=True,
                         )
@@ -640,8 +625,8 @@ with st.expander("Mapas individualizados", expanded=False):
                 for enabled, source, colors in climate_sources:
                     if enabled:
                         for category, color in enumerate(colors, start=1):
-                            climate_layers.append(pdk.Layer(
-                                "MVTLayer", f"app/static/hex_climate_referencias_tiles_v1/{source}/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            climate_layers.append(_mvt_layer(
+                                f"app/static/hex_climate_referencias_tiles_v1/{source}/{category}/{{z}}/{{x}}/{{y}}.pbf",
                                 min_zoom=4, max_zoom=6, filled=True, stroked=False, get_fill_color=color, pickable=True,
                             ))
                 if bahia_mask:
@@ -694,7 +679,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 water_layers = []
                 if show_water_hexagons:
                     water_layers.extend(
-                    pdk.Layer("MVTLayer", f"app/static/hex_water_security_tiles_v8/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                    _mvt_layer(f"app/static/hex_water_security_tiles_v8/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
@@ -703,17 +688,17 @@ with st.expander("Mapas individualizados", expanded=False):
                 # scored master layers (hexagons and certified properties).
                 if show_surface_water:
                     water_layers.extend([
-                        pdk.Layer("MVTLayer", "app/static/hidrica_referencias_tiles_v3/mapbiomas_sazonal/{z}/{x}/{y}.pbf",
+                        _mvt_layer("app/static/hidrica_referencias_tiles_v3/mapbiomas_sazonal/{z}/{x}/{y}.pbf",
                             min_zoom=5, max_zoom=9, filled=True, stroked=False, get_fill_color=[83, 168, 191, 90], pickable=False),
-                        pdk.Layer("MVTLayer", "app/static/hidrica_referencias_tiles_v3/mapbiomas_persistente/{z}/{x}/{y}.pbf",
+                        _mvt_layer("app/static/hidrica_referencias_tiles_v3/mapbiomas_persistente/{z}/{x}/{y}.pbf",
                             min_zoom=5, max_zoom=9, filled=True, stroked=False, get_fill_color=[21, 105, 157, 165], pickable=False),
                     ])
                 if show_bho6:
-                    water_layers.append(pdk.Layer("MVTLayer", "app/static/hidrica_referencias_tiles_v3/bho6/{z}/{x}/{y}.pbf",
+                    water_layers.append(_mvt_layer("app/static/hidrica_referencias_tiles_v3/bho6/{z}/{x}/{y}.pbf",
                         min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[32, 111, 158, 210],
                         get_line_width="properties.largura_px", line_width_units="pixels", line_width_min_pixels=0.6, pickable=False))
                 if show_siagas:
-                    water_layers.append(pdk.Layer("MVTLayer", "app/static/hidrica_referencias_tiles_v3/siagas/{z}/{x}/{y}.pbf",
+                    water_layers.append(_mvt_layer("app/static/hidrica_referencias_tiles_v3/siagas/{z}/{x}/{y}.pbf",
                         min_zoom=7, max_zoom=9, point_type="circle", filled=True, stroked=True,
                         get_fill_color=[20, 86, 130, 205], get_line_color=[255, 255, 255, 220], line_width_min_pixels=0.7,
                         get_radius="properties.ponto_tamanho", radius_units="pixels", radius_min_pixels=2.5, radius_max_pixels=13, pickable=False))
@@ -739,8 +724,8 @@ with st.expander("Mapas individualizados", expanded=False):
             with st.expander("Custo da terra", expanded=False):
                 st.markdown('<p class="soil-description">Referência regional de Valor da Terra Nua (VTN) agrícola em R$/ha. Não é preço de anúncio, laudo ou avaliação de fazenda.</p>', unsafe_allow_html=True)
                 land_layers = [
-                    pdk.Layer(
-                        "MVTLayer", f"app/static/hex_custo_terra_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                    _mvt_layer(
+                        f"app/static/hex_custo_terra_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=color, pickable=True,
                     )
@@ -766,14 +751,14 @@ with st.expander("Mapas individualizados", expanded=False):
             with st.expander("Logística até Ilhéus", expanded=False):
                 st.markdown('<p class="soil-description">Distância rodoviária real pela rede OpenStreetMap até o ponto operacional provisório da Cargill em Ilhéus.</p>', unsafe_allow_html=True)
                 logistics_layers = [
-                    pdk.Layer(
-                        "MVTLayer", "app/static/hex_logistica_ilheus_tiles_v4/distance/0/{z}/{x}/{y}.pbf",
+                    _mvt_layer(
+                        "app/static/hex_logistica_ilheus_tiles_v4/distance/0/{z}/{x}/{y}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=[196, 202, 208, 175], pickable=True,
                     ),
                 ] + [
-                    pdk.Layer(
-                        "MVTLayer", f"app/static/hex_logistica_ilheus_tiles_v4/distance/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                    _mvt_layer(
+                        f"app/static/hex_logistica_ilheus_tiles_v4/distance/{category}/{{z}}/{{x}}/{{y}}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=color, pickable=True,
                     )
@@ -811,21 +796,21 @@ with st.expander("Mapas individualizados", expanded=False):
                 socio_layers = []
                 if show_socio_hex:
                     socio_layers.extend(
-                        pdk.Layer("MVTLayer", f"app/static/hex_prodes_embargos_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
+                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
                 if show_prodes:
                     socio_layers.extend([
-                        pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[50, 139, 75, 50], pickable=False),
-                        pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[152, 191, 83, 65], pickable=False),
-                        pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[246, 204, 63, 85], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[50, 139, 75, 50], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[152, 191, 83, 65], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=False, get_fill_color=[246, 204, 63, 85], pickable=False),
                     ])
                 if show_embargos:
-                    socio_layers.append(pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
+                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v1/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
                 if show_territories:
                     socio_layers.extend([
-                        pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
-                        pdk.Layer("MVTLayer", "app/static/socioambiental_referencias_tiles_v1/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v1/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=7, max_zoom=7, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
                     ])
                 if bahia_mask:
                     socio_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
@@ -854,7 +839,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 layers_labor = []
                 for active_layer, theme in ((show_labor_index, "indice"), (show_labor_agro, "pessoal_rural"), (show_labor_pop, "populacao")):
                     if active_layer:
-                        layers_labor.extend(pdk.Layer("MVTLayer", f"app/static/hex_mao_obra_tiles_v1/{theme}/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True) for category, color in SOIL_SCORE_LAYERS)
+                        layers_labor.extend(_mvt_layer(f"app/static/hex_mao_obra_tiles_v1/{theme}/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True) for category, color in SOIL_SCORE_LAYERS)
                 if bahia_mask: layers_labor.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238,240,242,205], pickable=False))
                 if bahia_boundary: layers_labor.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13,39,67,255], line_width_min_pixels=2.5, pickable=False))
                 st.pydeck_chart(pdk.Deck(layers=layers_labor, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html":"<b>Contexto municipal de mão de obra</b><br/>Nota preliminar: {nota_mapa}/100<br/>Pessoal ocupado rural (2017): {pessoal_rural_2017}<br/>População (2022): {populacao_2022}<br/>Município dominante: {municipio}<br/>Cobertura municipal: {cobertura_pct}%<br/>Confiança: {confianca}<br/>Alertas: {alertas}"}), height=500)
