@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from html import escape
+from urllib.parse import urlsplit, urlunsplit
 
 import pandas as pd
 import pydeck as pdk
@@ -17,6 +18,47 @@ from webgis.scoring import CRITERIA, TILE_SCORE_FIELDS, potential_class, weighte
 
 
 st.set_page_config(page_title="SAF Cacau Bahia", page_icon="🍫", layout="wide", initial_sidebar_state="expanded")
+
+
+def _streamlit_static_tile_url(tile_path: str) -> str:
+    """Return a tile URL that survives Streamlit Cloud's ``/~/+/`` prefix.
+
+    The main map is a custom component and already receives ``streamlitUrl``
+    from the frontend.  The individual PyDeck maps run in Streamlit's own
+    deck.gl worker, whose relative URLs are resolved from the worker bundle
+    instead of the app document on Cloud.  Build an absolute app URL here so
+    both renderers request the same immutable static tiles.
+    """
+    try:
+        app_url = st.context.url
+    except Exception:  # pragma: no cover - defensive for non-Streamlit tools
+        app_url = None
+    if not app_url:
+        return tile_path
+
+    parsed = urlsplit(app_url)
+    app_path = parsed.path.rstrip("/")
+    # Streamlit Community Cloud serves the app document under /~/+/. Local
+    # Streamlit deliberately has no such prefix.
+    if parsed.netloc.endswith(".streamlit.app") and not app_path.endswith("/~/+"):
+        app_path = f"{app_path}/~/+"
+    base = urlunsplit((parsed.scheme, parsed.netloc, app_path, "", "")).rstrip("/")
+    return f"{base}/{tile_path.lstrip('/')}"
+
+
+_PYDECK_LAYER = pdk.Layer
+
+
+def _webgis_layer(layer_type: str, data: object = None, *args: object, **kwargs: object) -> object:
+    """Normalize only MVT static paths used by the individual thematic maps."""
+    if layer_type == "MVTLayer" and isinstance(data, str) and data.startswith("app/static/"):
+        data = _streamlit_static_tile_url(data)
+    return _PYDECK_LAYER(layer_type, data, *args, **kwargs)
+
+
+# Keep all existing layer declarations compact while applying the URL fix to
+# every individual-map source (soil, relief, climate, water, logistics, etc.).
+pdk.Layer = _webgis_layer
 
 
 def virtual_fill_expression(weights: dict[str, int], alpha: int = 185) -> str:
