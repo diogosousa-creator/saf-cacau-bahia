@@ -28,13 +28,13 @@ pdk.Layer = _PYDECK_LAYER
 
 
 def _streamlit_static_tile_url(tile_path: str) -> str:
-    """Return a stable absolute URL for a Streamlit static asset.
+    """Return a tile URL that survives Streamlit Cloud's ``/~/+/`` prefix.
 
     The main map is a custom component and already receives ``streamlitUrl``
     from the frontend.  The individual PyDeck maps run in Streamlit's own
     deck.gl worker, whose relative URLs are resolved from the worker bundle
-    instead of the app document on Cloud.  Build an absolute origin URL here
-    so both renderers request the same immutable ``/app/static`` tiles.
+    instead of the app document on Cloud.  Build an absolute app URL here so
+    both renderers request the same immutable static tiles.
     """
     try:
         app_url = st.context.url
@@ -44,10 +44,12 @@ def _streamlit_static_tile_url(tile_path: str) -> str:
         return tile_path
 
     parsed = urlsplit(app_url)
-    # ``/~/+/`` is an internal page route of Community Cloud, not the static
-    # asset root.  Using it for vector tiles can make deck.gl decode the page
-    # response as a tile.  Static serving is always rooted at ``/app/static``.
-    base = urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+    app_path = parsed.path.rstrip("/")
+    # Streamlit Community Cloud serves the app document under /~/+/. Local
+    # Streamlit deliberately has no such prefix.
+    if parsed.netloc.endswith(".streamlit.app") and not app_path.endswith("/~/+"):
+        app_path = f"{app_path}/~/+"
+    base = urlunsplit((parsed.scheme, parsed.netloc, app_path, "", "")).rstrip("/")
     return f"{base}/{tile_path.lstrip('/')}"
 
 
