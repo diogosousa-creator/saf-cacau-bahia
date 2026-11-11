@@ -29,13 +29,9 @@
     function streamlitAssetUrl(path) {
       const base = new URLSearchParams(window.location.search).get("streamlitUrl");
       if (!base) return path;
-      // URL() correctly resolves the Cloud prefix, but percent-encodes the
-      // Deck.gl placeholders. Restore only these three template tokens so
-      // MVTLayer can substitute the active z/x/y tile coordinates.
-      return new URL(String(path).replace(/^\//, ""), base.endsWith("/") ? base : `${base}/`)
-        .toString()
-        .replace(/%7B/gi, "{")
-        .replace(/%7D/gi, "}");
+      // Do not use URL() here: it percent-encodes Deck.gl's `{z}/{x}/{y}`
+      // tokens. A normalized concatenation preserves the template literally.
+      return `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
     }
     function colorFor(object) {
       const p = props(object), w = state.args.weights || {};
