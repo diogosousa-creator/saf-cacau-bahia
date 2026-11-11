@@ -438,7 +438,7 @@ with st.expander("Mapas individualizados", expanded=False):
     for map_title in (selected_individual_map,):
         if map_title == "Tipo de solo" and has_soil:
             with st.expander("Qualidade física do solo", expanded=False):
-                st.markdown('<p class="soil-description">Textura superficial e contexto físico regional para triagem de SAF Cacau.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Textura superficial e restrições físicas do solo para SAF com cacau.</p>', unsafe_allow_html=True)
                 controls = st.columns(3)
                 with controls[0]:
                     show_soil_score = st.toggle("Qualidade física do solo", value=True, key="soil_show_score")
@@ -540,7 +540,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 if source_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(source_legend)}</div>', unsafe_allow_html=True)
                 st.markdown(
-                    '''<p class="soil-methodology"><b>Metodologia:</b> Nota base combina, em partes iguais, a textura superficial MapBiomas Solo (0–30 cm) e o contexto físico da Pedologia IBGE 1:250.000. Rocha, escarpa e hidromorfia reduzem somente a fração de área correspondente; a penalidade é limitada a 25 pontos e áreas críticas acima de 10% são sinalizadas para validação.<br/><b>Fórmula:</b> Nota = máx(20, [0,50 × S<sub>textura</sub> + 0,50 × S<sub>IBGE</sub>] − mín(25, %rocha + %escarpa + %hidromorfia)); S<sub>textura</sub> = Σ(%classe × peso textural) e S<sub>IBGE</sub> = 100 × multiplicador físico IBGE.<br/><b>Leitura das cores:</b> vermelho indica predomínio de limitação física, como rocha, escarpa, hidromorfia ou textura muito desfavorável; laranja indica limitações relevantes que exigem correção e validação; amarelo indica condição intermediária; verde-claro indica solo predominantemente compatível, com limitações manejáveis; verde-escuro indica contexto físico favorável, sem restrição crítica expressiva. A cor resume a nota final e não substitui sondagem de campo.</p>''',
+                    '''<p class="soil-methodology"><b>Metodologia:</b> média, com peso igual, entre a textura MapBiomas Solo (0–30 cm) e o fator físico da Pedologia IBGE 1:250.000. Rocha, escarpa e solo encharcado descontam pontos conforme a área ocupada (máximo de 25).<br/><b>Fórmula:</b> Nota = 0,5 × Textura + 0,5 × IBGE − Desconto (mínimo 20). Pesos da textura: argilosa 80, média 75, muito argilosa 60, siltosa 55, arenosa 40, rocha 0.<br/><b>Leitura das cores:</b> do verde-escuro (solo favorável) ao vermelho (predomínio de rocha, escarpa ou encharcamento).</p>''',
                     unsafe_allow_html=True,
                 )
                 if show_soil_texture:
@@ -549,7 +549,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     st.caption("Convenção IBGE: Latossolos em amarelos, laranjas e vermelho-amarelos; Argissolos em tons claros rosados; Gleissolos em azul; Cambissolos e Neossolos em tons terrosos. Consulte o tooltip para a unidade, textura, pedregosidade, rochosidade e relevo.")
         elif map_title == "Declividade e Relevo":
             with st.expander("Declividade e Relevo", expanded=False):
-                st.markdown('<p class="soil-description">Condição topográfica para implantação, manejo e conservação do solo em SAF Cacau.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Condição do terreno para implantação, mecanização e conservação do solo.</p>', unsafe_allow_html=True)
                 controls = st.columns(2)
                 with controls[0]:
                     show_relief_score = st.toggle("Declividade e Relevo", value=True, key="relief_show_score")
@@ -595,12 +595,12 @@ with st.expander("Mapas individualizados", expanded=False):
                 if show_relief_source:
                     st.markdown('''<div id="source-legend"><strong>Declividade média COPDEM</strong>
                     <span class="legend-item"><i class="slope-flat"></i>≤3%</span><span class="legend-item"><i class="slope-soft"></i>&gt;3–8%</span><span class="legend-item"><i class="slope-mid"></i>&gt;8–15%</span><span class="legend-item"><i class="slope-steep"></i>&gt;15–25%</span><span class="legend-item"><i class="slope-very-steep"></i>&gt;25%</span></div>''', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> média ponderada pela área das faixas de declividade de 30 m. Pesos por pixel combinam manejo (45%), exposição topográfica à erosão (40%) e mecanização (15%); frações íngremes geram alertas, sem zerar toda a unidade.<br/><b>Fórmula:</b> Nota = Σ(% da área em cada faixa × peso da faixa), em que os pesos para 0–3%, 3–8%, 8–15%, 15–25%, 25–45% e &gt;45% são, respectivamente, 0,8875; 1,0000; 0,8025; 0,5400; 0,2325; e 0,0225.<br/><b>Leitura das cores:</b> vermelho indica terreno dominado por encostas muito íngremes — especialmente forte presença de 25–45% e/ou &gt;45% — com alto risco de erosão e operação difícil; laranja indica restrições importantes de acesso, mecanização e conservação; amarelo indica relevo misto, que exige manejo conservacionista; verde-claro indica predomínio de rampas suaves a moderadas, geralmente manejáveis; verde-escuro indica terreno majoritariamente plano a suave, sobretudo nas faixas de 0–8%, mais favorável à implantação. A cor resume a composição de toda a área, não uma única declividade.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> declividade medida em pixels de 30 m (Copernicus GLO-30). Cada faixa recebe um peso que combina manejo (45%), risco de erosão (40%) e mecanização (15%).<br/><b>Fórmula:</b> Nota = Σ(% da área na faixa × peso). Pesos: 0–3%: 89; 3–8%: 100; 8–15%: 80; 15–25%: 54; 25–45%: 23; &gt;45%: 2.<br/><b>Leitura das cores:</b> do verde-escuro (plano a suave) ao vermelho (predomínio de encostas acima de 25%).</p>''', unsafe_allow_html=True)
                 if show_relief_source:
                     st.caption("Declividade média COPDEM: verde-escuro ≤3%; verde-claro >3–8%; amarelo >8–15%; laranja >15–25%; vermelho >25%. O tooltip também mostra a declividade máxima e as frações da unidade entre 25–45% e acima de 45%.")
         elif map_title == "Clima e irrigação" and has_climate:
             with st.expander("Clima e irrigação", expanded=False):
-                st.markdown('<p class="soil-description">Compatibilidade climática e pressão de irrigação para SAF Cacau irrigado.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Adequação térmica e necessidade de irrigação, com base em 30 anos de dados (1996–2025).</p>', unsafe_allow_html=True)
                 first_controls = st.columns(3)
                 with first_controls[0]: show_climate_score = st.toggle("Clima e irrigação", value=True, key="climate_show_score")
                 with first_controls[1]: show_climate_p = st.toggle("Precipitação anual — CHIRPS", value=False, key="climate_ref_p")
@@ -669,10 +669,10 @@ with st.expander("Mapas individualizados", expanded=False):
                 if show_climate_demand: climate_legend.append(climate_items("Demanda P80", "demand", ["≤700", "700–1.100", "1.100–1.450", "1.450–1.800", ">1.800 mm/ano"]))
                 if climate_legend:
                     st.markdown('<div id="source-legend">' + '<br/>'.join(climate_legend) + '</div>', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> climatologia de 30 anos (1996–2025), usando precipitação CHIRPS e temperatura/evapotranspiração ERA5-Land. A nota avalia conforto térmico, calor extremo, demanda de irrigação P80, sequência seca e precipitação efetiva; não representa disponibilidade hídrica, outorga ou captação.<br/><b>Fórmula:</b> Nota = 0,45 × S<sub>Tmédia</sub> + 0,20 × S<sub>Tmax P95</sub> + 0,20 × S<sub>demanda P80</sub> + 0,10 × S<sub>seca</sub> + 0,05 × S<sub>PE</sub>. <span>(S<sub>Tmédia</sub>: temperatura média anual; S<sub>Tmax P95</sub>: percentil 95 das temperaturas máximas diárias; S<sub>demanda P80</sub>: déficit anual de irrigação com 80% de segurança; S<sub>seca</sub>: maior sequência anual de meses com chuva &lt;60 mm; S<sub>PE</sub>: precipitação efetiva anual.)</span><br/><b>Leitura das cores:</b> vermelho indica combinação de calor extremo recorrente, maior demanda de irrigação e/ou seca prolongada; laranja indica pressão climática alta; amarelo indica condição intermediária; verde-claro indica condição climática favorável com irrigação planejada; verde-escuro indica maior compatibilidade térmica e menor pressão climática relativa. A demanda P80 é a diferença anual entre ETo FAO-56 e precipitação efetiva, com 80% de segurança.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> cinco indicadores CHIRPS e ERA5-Land convertidos em notas de 0 a 100. A nota mede a necessidade de água, não a disponibilidade.<br/><b>Fórmula:</b> Nota = 0,45 × Temperatura média + 0,20 × Calor extremo + 0,20 × Déficit de irrigação + 0,10 × Meses secos + 0,05 × Chuva efetiva. Temperatura média ideal: 23–27 °C. Calor extremo: temperatura máxima superada em 5% dos dias, ideal até 32 °C. Déficit de irrigação: evapotranspiração menos chuva efetiva, num ano seco que ocorre 1 vez a cada 5, ideal até 700 mm.<br/><b>Leitura das cores:</b> do verde-escuro (maior adequação) ao vermelho (calor extremo, déficit alto ou seca prolongada).</p>''', unsafe_allow_html=True)
         elif map_title == "Segurança hídrica" and has_water_security:
             with st.expander("Segurança hídrica", expanded=False):
-                st.markdown('<p class="soil-description">Evidência regional de fonte superficial, rede hidrográfica e contexto de poços para triagem de captação.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Evidência documentada de acesso à água para irrigação.</p>', unsafe_allow_html=True)
                 controls = st.columns(4)
                 with controls[0]:
                     show_water_hexagons = st.toggle("Hexágonos de evidência", value=True, key="water_show_hexagons")
@@ -726,10 +726,10 @@ with st.expander("Mapas individualizados", expanded=False):
                     water_reference_legend.append('<span class="legend-item"><i class="well"></i>Poço SIAGAS/SGB</span>')
                 if water_reference_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(water_reference_legend)}</div>', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> verde-escuro é reservado exclusivamente para captação superficial com outorga ativa dentro da unidade. Outorga subterrânea ativa dentro da unidade recebe verde-claro; outorga subterrânea inativa/não confirmada, ou poço SIAGAS Bombeando/Equipado com teste positivo, recebe amarelo. Registros secos, parados, abandonados, obstruídos, sem situação ou sem teste são contexto laranja. BHO6 e MapBiomas Água permanecem como referência visual e não elevam a nota.<br/><b>Fórmula:</b> Nota = 100 com outorga superficial ativa; caso contrário, 75 com outorga subterrânea ativa; 55 com outorga subterrânea inativa/não confirmada, poço ativo testado no imóvel ou ≥3 em 2 km; 40 somente com registro incerto/inativo/sem teste; 20 sem evidência. <br/><b>Leitura das cores:</b> verde-escuro = outorga superficial ativa; verde-claro = outorga subterrânea ativa; amarelo = evidência subterrânea parcial; laranja = registro sem confirmação operacional/produtiva; vermelho = sem evidência. A cor não equivale a vazão garantida, titularidade, nova outorga ou autorização de captação.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> vale a melhor evidência encontrada na unidade. Água superficial e drenagem BHO6 são camadas de consulta e não elevam a nota.<br/><b>Fórmula:</b> outorga superficial ativa: 100; outorga subterrânea ativa: 75; outorga subterrânea inativa, poço ativo com teste no imóvel ou 3 ou mais em até 2 km: 55; apenas poços sem teste ou inativos: 40; sem evidência: 20.<br/><b>Leitura das cores:</b> verde-escuro 100; verde-claro 75; amarelo 55; laranja 40; vermelho 20. Não garante vazão nem direito a nova captação.</p>''', unsafe_allow_html=True)
         elif map_title == "Custo da terra" and has_land_cost:
             with st.expander("Custo da terra", expanded=False):
-                st.markdown('<p class="soil-description">Referência regional de Valor da Terra Nua (VTN) agrícola em R$/ha. Não é preço de anúncio, laudo ou avaliação de fazenda.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Valor de referência da terra nua agrícola (VTN), em R$/ha.</p>', unsafe_allow_html=True)
                 land_layers = [
                     _mvt_layer(
                         f"app/static/hex_custo_terra_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
@@ -753,10 +753,10 @@ with st.expander("Mapas individualizados", expanded=False):
                 <span class="legend-item"><i class="medium"></i>Intermediário</span>
                 <span class="legend-item"><i class="high"></i>Baixo</span>
                 <span class="legend-item"><i class="very-high"></i>Muito baixo</span></div>''', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Fonte e escopo:</b> Atlas do Mercado de Terras 2025 — INCRA/SIMET, VTN agrícola por Mercado Regional de Terras (MRT), agregado por interseção de área entre município e unidade analisada. A estrutura mantém campo para VTN municipal oficial da Receita Federal, quando sua planilha for disponibilizada e validada.<br/><b>Normalização usada no índice geral:</b> Nota = 100 × [ln(Q90) − ln(VTN da unidade)] / [ln(Q90) − ln(Q10)], limitada entre 0 e 100. Q10 e Q90 são os percentis da distribuição estadual de referência; menor VTN recebe maior nota comercial. <b>Leitura das cores:</b> vermelho = maior referência regional de custo; laranja = custo alto; amarelo = intermediário; verde-claro = custo baixo; verde-escuro = menor custo relativo. O intervalo 80% representa incerteza da referência regional, não margem de negociação.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> Atlas do Mercado de Terras 2025 (INCRA/SIMET), por mercado regional de terras, proporcional à área. Não é avaliação de imóvel.<br/><b>Fórmula:</b> Nota = 100 × [ln(P90) − ln(VTN)] ÷ [ln(P90) − ln(P10)]. P10 e P90 são os percentis da Bahia: terra mais barata recebe nota maior.<br/><b>Leitura das cores:</b> do verde-escuro (menor custo) ao vermelho (maior custo).</p>''', unsafe_allow_html=True)
         elif map_title == "Logística até Ilhéus" and has_logistics:
             with st.expander("Logística até Ilhéus", expanded=False):
-                st.markdown('<p class="soil-description">Distância rodoviária real pela rede OpenStreetMap até o ponto operacional provisório da Cargill em Ilhéus.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Distância rodoviária até o ponto de recebimento de cacau em Iguape, Ilhéus/BA.</p>', unsafe_allow_html=True)
                 logistics_layers = [
                     _mvt_layer(
                         "app/static/hex_logistica_ilheus_tiles_v4/distance/0/{z}/{x}/{y}.pbf",
@@ -786,10 +786,10 @@ with st.expander("Mapas individualizados", expanded=False):
                 <span class="legend-item"><i class="medium"></i>{_log_cut_65:.0f}–{_log_cut_50:.0f} km</span>
                 <span class="legend-item"><i class="high"></i>{_log_cut_80:.0f}–{_log_cut_65:.0f} km</span>
                 <span class="legend-item"><i class="very-high"></i>≤{_log_cut_80:.0f} km</span></div>''', unsafe_allow_html=True)
-                st.markdown(f'''<p class="soil-methodology"><b>Metodologia:</b> rota rodoviária pelo centroide de cada hexágono até o ponto operacional provisório da Cargill Cacau, Distrito de Iguape, Ilhéus/BA, calculada sobre a malha viária OpenStreetMap/Geofabrik Nordeste com Dijkstra reverso. A cor representa a distância real de rota, não frete, tempo, condição de pavimento, pedágio ou acesso interno da fazenda.<br/><b>Normalização usada no índice geral:</b> Nota = 100 × ({_log_max_km:.1f} − distância em km) / ({_log_max_km:.1f} − {_log_min_km:.1f}), limitada entre 0 e 100. Os limites são a menor e a maior rota válida da malha da Bahia; a cor apenas agrupa essa nota contínua nas faixas gerais 80, 65, 50 e 35. Sem rota OSM ou com conexão à rede superior a 10 km, a nota permanece sem dado e exige diligência.</p>''', unsafe_allow_html=True)
+                st.markdown(f'''<p class="soil-methodology"><b>Metodologia:</b> rota real pela malha OpenStreetMap a partir do centro de cada unidade. Frete, tempo e pavimento não são considerados.<br/><b>Fórmula:</b> Nota = 100 × ({_log_max_km:.0f} − km) ÷ ({_log_max_km:.0f} − {_log_min_km:.0f}), entre a maior e a menor rota da Bahia. Exemplo: 400 km ≈ nota {100 * (_log_max_km - 400) / (_log_max_km - _log_min_km):.0f}.<br/><b>Leitura das cores:</b> faixas das notas 80, 65, 50 e 35. Sem rota ou a mais de 10 km da estrada: sem nota.</p>''', unsafe_allow_html=True)
         elif map_title == "PRODES e embargos" and has_socioenvironmental:
             with st.expander("PRODES e embargos", expanded=False):
-                st.markdown('<p class="soil-description">Triagem territorial de supressão PRODES e alertas oficiais de embargo, UC e Terra Indígena.</p>', unsafe_allow_html=True)
+                st.markdown('<p class="soil-description">Histórico de desmatamento e restrições socioambientais oficiais.</p>', unsafe_allow_html=True)
                 controls = st.columns(4)
                 with controls[0]:
                     show_socio_hex = st.toggle("Classificação territorial", value=True, key="socio_hex")
@@ -835,10 +835,10 @@ with st.expander("Mapas individualizados", expanded=False):
                     socio_reference_legend.extend(['<span class="legend-item"><i class="uc"></i>Unidade de Conservação</span>', '<span class="legend-item"><i class="ti"></i>Terra Indígena</span>'])
                 if socio_reference_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(socio_reference_legend)}</div>', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> A≤2008 é o Marco UE PRODES até 31/12/2020 menos os incrementos de 2009–2020; A2009–2020 e A≥2021 vêm de incrementos anuais PRODES, sem dupla contagem. Em hexágonos, embargo federal poligonal vigente, UC ou TI em união ≥50% gera vermelho; qualquer contato menor ou embargo pontual gera laranja. Nos imóveis certificados, embargo poligonal vigente em qualquer toque gera vermelho; embargo pontual interno gera laranja. Sem restrição prioritária, prevalece o período de maior área. <b>Fontes:</b> INPE/TerraBrasilis PRODES, Ibama/AIE, CNUC/MMA e Funai. Esta leitura exige validação documental e não substitui diligência legal ou ambiental.</p>''', unsafe_allow_html=True)
-        elif map_title == "Mão de obra e infraestrutura" and not is_demo and data["mao_obra_infra"].notna().any():
-            with st.expander("Mão de obra e infraestrutura", expanded=False):
-                st.markdown('<p class="soil-description">Contexto municipal preliminar de mão de obra agropecuária. Não comprova trabalhador disponível para contratação.</p>', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> restrições são verificadas primeiro. Em hexágonos, embargo poligonal vigente, UC ou TI cobrindo 50% ou mais da área gera vermelho; contato menor ou embargo pontual gera laranja. Em imóveis, qualquer contato com embargo poligonal gera vermelho. Sem restrição, vale o período PRODES com maior área.<br/><b>Leitura das cores:</b> verde-escuro até 2008; verde-claro 2009–2020; amarelo a partir de 2021; laranja diligência; vermelho restrição crítica. Fontes: INPE, Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
+        elif map_title == "Mão de obra" and not is_demo and data["mao_obra_infra"].notna().any():
+            with st.expander("Mão de obra", expanded=False):
+                st.markdown('<p class="soil-description">Disponibilidade relativa de mão de obra rural por município.</p>', unsafe_allow_html=True)
                 controls = st.columns(3)
                 with controls[0]: show_labor_index = st.toggle("Índice composto", value=True, key="labor_index")
                 with controls[1]: show_labor_agro = st.toggle("Pessoal ocupado rural — Censo Agro", value=False, key="labor_agro")
@@ -857,6 +857,6 @@ with st.expander("Mapas individualizados", expanded=False):
                     if show_labor_agro: labels.append("Pessoal ocupado rural")
                     if show_labor_pop: labels.append("População municipal")
                     st.markdown(f'''<div id="source-legend"><strong>{" + ".join(labels)} — referência relativa estadual</strong><span class="legend-item"><i class="very-low"></i>Menor</span><span class="legend-item"><i class="low"></i>Baixo</span><span class="legend-item"><i class="medium"></i>Intermediário</span><span class="legend-item"><i class="high"></i>Alto</span><span class="legend-item"><i class="very-high"></i>Maior</span></div>''', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Versão preliminar:</b> 0,45 × pessoal ocupado rural do Censo Agro 2017 + 0,20 × escala populacional do Censo 2022, renormalizada enquanto a RAIS agro 2024 não for integrada. Os valores são calculados por município e transferidos por interseção de área; não usam centróide. A RAIS será incorporada com peso de 0,35 após controle de qualidade. <b>Leitura:</b> as cores representam contexto relativo no estado, e não trabalhadores livres, qualificação para cacau, salário, sazonalidade ou capacidade de contratação.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> indicadores municipais transferidos pela proporção de área. Versão preliminar: os dados de emprego formal (RAIS) entrarão depois, com peso de 35%.<br/><b>Fórmula:</b> Nota = 0,69 × Ocupação rural + 0,31 × Porte populacional. Ocupação rural: ocupados na agropecuária por mil habitantes (Censo Agro 2017). Porte populacional: de 5 mil (nota 0) a 100 mil habitantes (nota 100), Censo 2022.<br/><b>Leitura das cores:</b> do verde-escuro (maior disponibilidade relativa) ao vermelho (menor).</p>''', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="individual-map-row"><span>{map_title}</span><small>Em preparação</small></div>', unsafe_allow_html=True)

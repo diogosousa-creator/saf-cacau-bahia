@@ -16,7 +16,7 @@ CRITERIA = {
     "risco_socioambiental": "PRODES e embargos",
     "logistica_ilheus": "Logística até Ilhéus",
     "custo_terra": "Custo da terra",
-    "mao_obra_infra": "Mão de obra e infraestrutura",
+    "mao_obra_infra": "Mão de obra",
 }
 
 # Ordem física já gravada nos atributos ``s0…s7`` dos tiles MVT-base.  Ela é
