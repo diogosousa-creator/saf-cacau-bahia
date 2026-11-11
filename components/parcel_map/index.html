@@ -20,6 +20,17 @@
     const scoreKeys = ["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus"];
 
     function props(obj) { return (obj && obj.properties) || obj || {}; }
+    // Community Cloud serves an app below a runtime-specific base path
+    // (for example `/~/+/`).  The component itself is hosted one level below
+    // that path, so an absolute `/app/static/...` URL misses the application
+    // prefix and returns the Streamlit login HTML instead of a vector tile.
+    // Streamlit passes its canonical base URL in the component query string;
+    // use it for every static tile request while retaining localhost support.
+    function streamlitAssetUrl(path) {
+      const base = new URLSearchParams(window.location.search).get("streamlitUrl");
+      if (!base) return path;
+      return new URL(String(path).replace(/^\//, ""), base.endsWith("/") ? base : `${base}/`).toString();
+    }
     function colorFor(object) {
       const p = props(object), w = state.args.weights || {};
       let numerator = 0, denominator = 0;
@@ -61,12 +72,12 @@
       const result = [];
       if (a.bahia_mask) result.push(new deck.GeoJsonLayer({ id:"mask", data:a.bahia_mask, filled:true, stroked:false, getFillColor:[238,240,242,205], pickable:false }));
       result.push(new deck.MVTLayer({
-        id:"hex-base", data:a.hex_tiles, minZoom:4, maxZoom:7, filled:true, stroked:false,
+        id:"hex-base", data:streamlitAssetUrl(a.hex_tiles), minZoom:4, maxZoom:7, filled:true, stroked:false,
         getFillColor:colorFor, pickable:false,
         updateTriggers:{getFillColor:weightToken}
       }));
       result.push(new deck.MVTLayer({
-        id:"parcel-visual", data:a.parcel_tiles, minZoom:7, maxZoom:9, filled:true, stroked:true,
+        id:"parcel-visual", data:streamlitAssetUrl(a.parcel_tiles), minZoom:7, maxZoom:9, filled:true, stroked:true,
         getFillColor:colorFor, getLineColor:lineFor, getLineWidth:widthFor, lineWidthUnits:"pixels", lineWidthMinPixels:.8,
         uniqueIdProperty:"farm_id", pickable:true, autoHighlight:false,
         updateTriggers:{getFillColor:weightToken, getLineColor:state.selectedId, getLineWidth:state.selectedId},
@@ -85,7 +96,7 @@
       // thematic layer. Its geometry is the same parcel geometry that was
       // clicked; no centroid or tile-local selected index is involved.
       result.push(new deck.MVTLayer({
-        id:"parcel-selection-outline", data:a.parcel_tiles, minZoom:7, maxZoom:9,
+        id:"parcel-selection-outline", data:streamlitAssetUrl(a.parcel_tiles), minZoom:7, maxZoom:9,
         filled:false, stroked:true, pickable:false,
         getLineColor: object => featureId(object) === state.selectedId ? [7,45,86,255] : [0,0,0,0],
         getLineWidth: object => featureId(object) === state.selectedId ? 4.5 : 0,

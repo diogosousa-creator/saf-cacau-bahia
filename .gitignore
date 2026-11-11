@@ -8,6 +8,8 @@ data/raw/*
 !data/raw/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
+data/archive/*
+!data/archive/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
 tmp/*
