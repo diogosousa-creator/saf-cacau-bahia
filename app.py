@@ -46,7 +46,12 @@ def _streamlit_static_tile_url(tile_path: str) -> str:
     return f"{base}/{tile_path.lstrip('/')}"
 
 
-_PYDECK_LAYER = pdk.Layer
+# Streamlit reruns this module on every widget interaction while preserving
+# imported modules. Store the original constructor on the PyDeck module once;
+# otherwise a subsequent rerun would wrap the wrapper recursively.
+if not hasattr(pdk, "_webgis_original_layer"):
+    pdk._webgis_original_layer = pdk.Layer
+_PYDECK_LAYER = pdk._webgis_original_layer
 
 
 def _webgis_layer(layer_type: str, data: object = None, *args: object, **kwargs: object) -> object:
