@@ -6,6 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+from pydeck.bindings.layer import Layer as _PYDECK_LAYER
 
 from webgis.data import (
     has_georeferenced_farms,
@@ -18,6 +19,12 @@ from webgis.scoring import CRITERIA, TILE_SCORE_FIELDS, potential_class, weighte
 
 
 st.set_page_config(page_title="SAF Cacau Bahia", page_icon="🍫", layout="wide", initial_sidebar_state="expanded")
+
+# A revisão anterior usou uma adaptação temporária de ``pdk.Layer``. Em um
+# processo Streamlit reaproveitado, o módulo ``pydeck`` pode sobreviver ao
+# reload do script; restaure-o explicitamente antes de criar qualquer camada.
+# As URLs Cloud-safe são aplicadas somente pela fábrica ``_mvt_layer`` abaixo.
+pdk.Layer = _PYDECK_LAYER
 
 
 def _streamlit_static_tile_url(tile_path: str) -> str:
