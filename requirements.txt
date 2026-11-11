@@ -1,7 +1,11 @@
-streamlit>=1.40
+# Streamlit e PyDeck fixados nas versões validadas localmente: o Streamlit
+# embute o deck.gl usado pelos mapas individualizados (1.50.0 -> deck.gl 9.1).
+# Sem a fixação, o Cloud instalou Streamlit recente (deck.gl 9.4) e a
+# Pedologia IBGE passou a aparecer como triângulos cinza.
+streamlit==1.50.0
+pydeck==0.9.3
 pandas>=2.2
 numpy>=1.26
-pydeck>=0.9
 geopandas>=1.0
 rasterio>=1.4
 shapely>=2.0
