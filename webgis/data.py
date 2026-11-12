@@ -56,14 +56,24 @@ def _demo_records() -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
+def _file_stamp(*paths: Path) -> tuple:
+    """Cache key tied to the data files: a deploy that replaces a parquet
+    invalidates the cached frame even when Streamlit Cloud reuses the process."""
+    return tuple((p.name, p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else (p.name, None) for p in paths)
+
+
 def load_assessments() -> tuple[pd.DataFrame, bool]:
-    """Load the immutable analytical table once per server session.
+    """Load the immutable analytical table once per data version.
 
     The returned frame is the master-table snapshot; scoring remains virtual in
     the browser and therefore changing a sidebar weight never changes this
     source or triggers a new spatial calculation.
     """
+    return _load_assessments(_file_stamp(PROCESSED / "assessments.parquet"))
+
+
+@st.cache_data(show_spinner=False)
+def _load_assessments(stamp: tuple) -> tuple[pd.DataFrame, bool]:
     path = PROCESSED / "assessments.parquet"
     if path.exists():
         return pd.read_parquet(path), False
@@ -97,8 +107,13 @@ def has_georeferenced_farms() -> bool:
     return tiles.is_dir() and any(tiles.iterdir())
 
 
-@st.cache_data(show_spinner=False)
 def load_farm_detail_lookup() -> pd.DataFrame:
+    return _load_farm_detail_lookup(_file_stamp(PROCESSED / "fazendas_apresentacao_parcelas_detalhe_lookup.parquet",
+                                                PROCESSED / "fazendas_detalhe_lookup.parquet"))
+
+
+@st.cache_data(show_spinner=False)
+def _load_farm_detail_lookup(stamp: tuple) -> pd.DataFrame:
     """Return the cached attribute-only lookup used after a map click.
 
     This is intentionally lazy: the certified-property table is never loaded
@@ -145,13 +160,20 @@ def load_selected_farm_feature(farm_id: str) -> dict | None:
     }
 
 
-@st.cache_data(show_spinner=False)
+_RANKING_FILES = ("municipios_ranking_base.parquet", "municipios_hex_pesos.parquet", "municipios_imoveis.parquet")
+
+
 def load_municipal_ranking_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
     """Spatial links for the municipal ranking (independent of the weights).
 
-    Loaded only when the ranking block runs; cached for the whole server.
+    Loaded only when the ranking block runs; cached per data version.
     """
-    paths = [PROCESSED / name for name in ("municipios_ranking_base.parquet", "municipios_hex_pesos.parquet", "municipios_imoveis.parquet")]
+    return _load_municipal_ranking_inputs(_file_stamp(*(PROCESSED / name for name in _RANKING_FILES)))
+
+
+@st.cache_data(show_spinner=False)
+def _load_municipal_ranking_inputs(stamp: tuple) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+    paths = [PROCESSED / name for name in _RANKING_FILES]
     if not all(path.exists() for path in paths):
         return None
     base, hex_weights, farm_municipio = (pd.read_parquet(path) for path in paths)

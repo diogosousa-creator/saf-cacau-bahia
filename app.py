@@ -12,15 +12,17 @@ from pydeck.bindings.layer import Layer as _PYDECK_LAYER
 
 # Streamlit reaproveita módulos já importados entre reruns. Depois de um
 # deploy, o servidor pode manter uma versão antiga de webgis.* em memória;
-# recarregue-os quando faltar algo que este app.py exige.
+# recarregue-os quando o arquivo-fonte mudar.
 import importlib as _importlib
-import inspect as _inspect
-import webgis.data as _webgis_data
-import webgis.parcel_map as _webgis_parcel_map
-if not hasattr(_webgis_data, "load_municipal_ranking_inputs"):
-    _importlib.reload(_webgis_data)
-if "focus" not in _inspect.signature(_webgis_parcel_map.parcel_map).parameters:
-    _importlib.reload(_webgis_parcel_map)
+import os as _os
+for _name in ("webgis.scoring", "webgis.data", "webgis.ranking", "webgis.parcel_map"):
+    _module = _importlib.import_module(_name)
+    _mtime = _os.path.getmtime(_module.__file__)
+    # Recarrega quando o arquivo mudou ou o módulo veio de um processo antigo
+    # (sem a marca). Ordem: scoring antes de quem importa dele.
+    if getattr(_module, "_source_mtime", None) != _mtime:
+        _module = _importlib.reload(_module)
+        _module._source_mtime = _mtime
 
 from webgis.data import (
     has_georeferenced_farms,
