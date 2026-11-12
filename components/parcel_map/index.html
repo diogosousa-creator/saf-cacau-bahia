@@ -17,7 +17,7 @@
   <script>
     const state = { map: null, overlay: null, args: null, selectedId: "", selectedFeature: null, view: null, focusKey: "" };
     const COLORS = { veryLow:[197,52,47,255], low:[235,122,47,255], medium:[246,204,63,255], high:[152,191,83,255], veryHigh:[52,139,75,255] };
-    const scoreKeys = ["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus"];
+    const scoreKeys = ["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus","uso_solo"];
 
     function props(obj) { return (obj && obj.properties) || obj || {}; }
     // Community Cloud serves an app below a runtime-specific base path

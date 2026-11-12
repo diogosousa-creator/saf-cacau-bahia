@@ -28,6 +28,7 @@ FARM_DETAIL_COLUMNS = (
     "logistica_ilheus",
     "custo_terra",
     "mao_obra_infra",
+    "uso_solo",
     "centroide_longitude",
     "centroide_latitude",
     "limite_oeste",
@@ -92,7 +93,7 @@ def has_georeferenced_farms() -> bool:
     Streamlit rerun.  The active version is immutable and its directory is the
     availability contract; geometry remains loaded by viewport only in deck.gl.
     """
-    tiles = ROOT / "static" / "imoveis_apresentacao_parcelas_tiles_v24"
+    tiles = ROOT / "static" / "imoveis_apresentacao_parcelas_tiles_v25"
     return tiles.is_dir() and any(tiles.iterdir())
 
 

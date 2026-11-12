@@ -7,7 +7,7 @@ WebGIS para priorizar áreas de desenvolvimento de sistemas agroflorestais com c
 - **Índice territorial:** hexágonos regulares de 5 km para toda a Bahia.
 - **Fazendas georeferenciadas:** SIGEF prioritário, complementado por geometrias SNCI sem sobreposição analítica com o SIGEF.
 - **Entrega web de fazendas:** tiles vetoriais MVT por zoom; o navegador carrega somente os imóveis visíveis. O GeoParquet analítico permanece como base de cálculo.
-- **Pontuação:** oito critérios de 0 a 100, com pesos configuráveis de 0 a 10; peso zero exclui o critério do cálculo virtual.
+- **Pontuação:** nove critérios de 0 a 100, com pesos configuráveis de 0 a 10; peso zero exclui o critério do cálculo virtual.
 
 O painel calcula a pontuação territorial e a pontuação do imóvel separadamente. A análise de imóvel usa estatísticas espaciais ponderadas pela área da sua geometria analítica.
 
@@ -98,6 +98,14 @@ Nota territorial: média das notas dos hexágonos ponderada pela área de cada
 hexágono no município. Nota dos imóveis: média das parcelas ponderada pela área;
 cada parcela conta no município que contém a maior parte dela. Ao clicar em um
 município, o mapa geral enquadra o município e destaca seu contorno.
+
+## Uso atual do solo (MapBiomas)
+
+Critério de prospecção: áreas já abertas e baratas favorecem a implantação. Fonte: MapBiomas Brasil Coleção 11, ano 2025, pixel de 30 m.
+
+- Nota = Σ(% da área aproveitável no grupo × nota): pastagem 100; mosaico de usos 75; lavoura temporária (soja, cana, algodão, arroz, outras) 50; lavoura perene e silvicultura 25; vegetação nativa 0. Água, área urbana, rocha e mineração ficam fora do denominador; sem área aproveitável, sem nota.
+- **Base original:** `data/raw/mapbiomas_cobertura/mapbiomas_c11_cobertura_2025_bahia.tif` (códigos oficiais, grade nativa, fora do Git; ver `LEIAME.txt`). Exportada com `scripts/gee_export_mapbiomas_cobertura_bahia.js` no Google Earth Engine, porque o download direto do MapBiomas está suspenso.
+- Pipeline: `build_landuse_stats.py` (área por grupo em hexágonos e imóveis, mesmo método do PRODES) → `ingest_landuse.py` (nota nas duas bases) → `build_presentation_farms.py` → `build_base_vector_tiles.py` (`s8`; hexágonos com `--max-tolerance 150`) → `build_landuse_tiles.py` (mapa temático e referência vetorial do MapBiomas, picotada em blocos).
 
 ## Tooltips e geometria dos mapas temáticos
 

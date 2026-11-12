@@ -6,16 +6,16 @@ import geopandas as gpd
 import mapbox_vector_tile, mercantile, pandas as pd
 from shapely.geometry import box, mapping
 
-SCORES=["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus"]
+SCORES=["tipo_solo","relevo_drenagem","clima_irrigacao","seguranca_hidrica","custo_terra","mao_obra_infra","risco_socioambiental","logistica_ilheus","uso_solo"]
 
 def main():
- p=argparse.ArgumentParser(); p.add_argument('--units',type=Path,required=True);p.add_argument('--scores',type=Path,required=True);p.add_argument('--id-field',required=True);p.add_argument('--score-id',required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--minzoom',type=int,required=True);p.add_argument('--maxzoom',type=int,required=True);p.add_argument('--tile-x-min',type=int);p.add_argument('--tile-x-max',type=int);args=p.parse_args()
+ p=argparse.ArgumentParser(); p.add_argument('--units',type=Path,required=True);p.add_argument('--scores',type=Path,required=True);p.add_argument('--id-field',required=True);p.add_argument('--score-id',required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--minzoom',type=int,required=True);p.add_argument('--maxzoom',type=int,required=True);p.add_argument('--tile-x-min',type=int);p.add_argument('--tile-x-max',type=int);p.add_argument('--max-tolerance',type=float,help='Limite de simplificacao em metros (use 150 para hexagonos).');args=p.parse_args()
  g=gpd.read_parquet(args.units) if args.units.suffix.endswith('parquet') else gpd.read_file(args.units)
  s=pd.read_parquet(args.scores)
  fields=[args.score_id,*[x for x in SCORES if x in s.columns]]
  # The property GeoParquet is both the geometry and the score source. Remove
  # duplicated score columns before merging so the canonical score names remain
- # available as ``s0…s7`` in the output tile.
+ # available as ``s0…s8`` in the output tile.
  g=g.drop(columns=[field for field in SCORES if field in g.columns], errors='ignore')
  g=g.merge(s[fields],left_on=args.id_field,right_on=args.score_id,how='left').to_crs(4326); g['geometry']=g.geometry.make_valid()
  g['_row']=range(len(g)); ix=g.sindex; args.output.mkdir(parents=True,exist_ok=True)
@@ -24,6 +24,9 @@ def main():
   # certified-property layer: light at regional scale and near-original when
   # an analyst zooms into a small group of farms.
   tol={4:1800,5:900,6:400,7:80,8:35,9:12}.get(z,8)
+  if args.max_tolerance is not None:
+   # 5 km hexagons lose vertices (and leave gaps) above ~1 km tolerance.
+   tol=min(tol,args.max_tolerance)
   for t in mercantile.tiles(*g.total_bounds,zooms=[z]):
    if args.tile_x_min is not None and t.x < args.tile_x_min: continue
    if args.tile_x_max is not None and t.x > args.tile_x_max: continue

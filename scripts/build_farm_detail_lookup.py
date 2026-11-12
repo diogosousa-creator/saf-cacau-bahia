@@ -14,7 +14,7 @@ DETAIL_COLUMNS = [
     "id_fazenda", "referencia_exibicao", "area_ha", "tipo_solo",
     "relevo_drenagem", "clima_irrigacao", "seguranca_hidrica",
     "risco_socioambiental", "logistica_ilheus", "custo_terra",
-    "mao_obra_infra",
+    "mao_obra_infra", "uso_solo",
 ]
 
 

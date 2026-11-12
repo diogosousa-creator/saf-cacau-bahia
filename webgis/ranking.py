@@ -36,7 +36,7 @@ def municipal_ranking(hex_scores: pd.DataFrame, hex_weights: pd.DataFrame, farm_
     number of qualifying parcels and their area use only parcels with at least
     this area.  Municipalities with no qualifying parcel keep ``lotes_alvo = 0``.
     """
-    hexes = hex_scores[["id", *CRITERIA]].copy()
+    hexes = hex_scores.reindex(columns=["id", *CRITERIA]).copy()
     hexes["nota"], _ = weighted_score_available(hexes, weights)
     links = hex_weights.merge(hexes, on="id", how="inner")
     territorial = _weighted_mean(links["nota"], links["area_ha"], links["cod_mun"]).rename("nota_territorial")
@@ -47,7 +47,7 @@ def municipal_ranking(hex_scores: pd.DataFrame, hex_weights: pd.DataFrame, farm_
                                   for key in active})
     weakest = per_criterion.idxmin(axis=1).map(CRITERIA).rename("criterio_mais_fraco") if active else pd.Series(dtype=object)
 
-    farms = farm_scores[["id_fazenda", "area_ha", *CRITERIA]].merge(farm_municipio, on="id_fazenda", how="inner")
+    farms = farm_scores.reindex(columns=["id_fazenda", "area_ha", *CRITERIA]).merge(farm_municipio, on="id_fazenda", how="inner")
     farms["nota"], _ = weighted_score_available(farms, weights)
     farms["area_ha"] = pd.to_numeric(farms["area_ha"], errors="coerce").fillna(0)
     # Lot size = certified area before the visual overlap clip (falls back to

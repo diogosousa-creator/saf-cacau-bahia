@@ -14,12 +14,13 @@ CRITERIA = {
     "clima_irrigacao": "Clima e irrigação",
     "seguranca_hidrica": "Segurança hídrica",
     "risco_socioambiental": "PRODES e embargos",
+    "uso_solo": "Uso atual do solo",
     "logistica_ilheus": "Logística até Ilhéus",
     "custo_terra": "Custo da terra",
     "mao_obra_infra": "Mão de obra",
 }
 
-# Ordem física já gravada nos atributos ``s0…s7`` dos tiles MVT-base.  Ela é
+# Ordem física já gravada nos atributos ``s0…s8`` dos tiles MVT-base.  Ela é
 # deliberadamente estável: a ordem de apresentação pode evoluir sem alterar o
 # significado de uma camada publicada nem obrigar o navegador a baixar uma
 # nova geometria.  Qualquer reconstrução de tiles deve preservar esta ordem.
@@ -32,6 +33,7 @@ TILE_SCORE_FIELDS = (
     "mao_obra_infra",
     "risco_socioambiental",
     "logistica_ilheus",
+    "uso_solo",          # s8 — MapBiomas C11 2025 (pastagem 100 … nativa 0)
 )
 
 

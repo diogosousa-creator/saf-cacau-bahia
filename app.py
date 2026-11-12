@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from html import escape
+import json
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pandas as pd
@@ -80,13 +82,13 @@ def _mvt_layer(tile_path: str, **kwargs: object) -> pdk.Layer:
 def virtual_fill_expression(weights: dict[str, int], alpha: int = 185) -> str:
     """Compact deck.gl expression evaluated against each MVT feature.
 
-    ``s0`` … ``s7`` are immutable criterion scores kept in the tile.  The
+    ``s0`` … ``s8`` are immutable criterion scores kept in the tile.  The
     expression changes with the sidebar weights; the geometry tile itself does
     not. ``-1`` means no source data for that criterion.
     """
     terms = []
     denominators = []
-    # Os campos compactos s0…s7 têm ordem física estável nos MVTs.  A ordem
+    # Os campos compactos s0…s8 têm ordem física estável nos MVTs.  A ordem
     # visual de CRITERIA é independente e pode acompanhar o fluxo de análise.
     for index, key in enumerate(TILE_SCORE_FIELDS):
         weight = int(weights[key])
@@ -352,6 +354,7 @@ has_water_security = not is_demo and data["seguranca_hidrica"].notna().any()
 has_socioenvironmental = not is_demo and data["risco_socioambiental"].notna().any()
 has_logistics = not is_demo and data["logistica_ilheus"].notna().any()
 has_land_cost = not is_demo and data["custo_terra"].notna().any()
+has_landuse = not is_demo and "uso_solo" in data.columns and data["uso_solo"].notna().any()
 if has_logistics:
     _log_min_km = float(data["logistica_ilheus_min_referencia_km"].dropna().iloc[0])
     _log_max_km = float(data["logistica_ilheus_max_referencia_km"].dropna().iloc[0])
@@ -555,22 +558,31 @@ with st.expander("Ranking de municípios para prospecção", expanded=False):
         lots_label = f"Nota dos lotes ≥ {_br_number(min_lot, 0)} ha" if min_lot > 0 else "Nota dos imóveis"
         # A municipality chosen in the search keeps its real position: when it
         # is beyond the visible rows it is appended, highlighted, after them.
-        rows = list(range(min(shown, len(table))))
+        # One with no lot of the chosen size is appended too, without a rank
+        # position, so its territorial score is still visible.
+        entries = [(index + 1, next(table.iloc[[index]].itertuples(index=False)), False)
+                   for index in range(min(shown, len(table)))]
         if focus_cod:
             match = table.index[table["cod_mun"] == focus_cod]
             if len(match) and int(match[0]) >= shown:
-                rows.append(int(match[0]))
+                entries.append((int(match[0]) + 1, next(table.iloc[[int(match[0])]].itertuples(index=False)), False))
             elif not len(match):
-                name = ranking.loc[ranking["cod_mun"] == focus_cod, "municipio"]
-                st.caption(f"{name.iloc[0] if len(name) else 'Este município'} está enquadrado no mapa, mas não tem "
-                           f"lote certificado de {_br_number(min_lot, 0)} ha ou mais e por isso não entra no ranking.")
+                outside = ranking[ranking["cod_mun"] == focus_cod]
+                if len(outside):
+                    entries.append(("—", next(outside.itertuples(index=False)), True))
         with st.container(key="ranking_lista"):
-            for index in rows:
-                position, row = index + 1, next(table.iloc[[index]].itertuples(index=False))
+            for position, row, is_outside in entries:
                 cod = int(row.cod_mun)
                 selected = " selected" if focus_cod == cod else ""
-                top = " top" if position <= 3 else ""
-                if min_lot > 0:
+                top = " top" if not is_outside and position <= 3 else ""
+                if is_outside:
+                    territorial = ranking["nota_territorial"].rank(ascending=False, method="min")
+                    rank_ter = territorial[ranking["cod_mun"] == cod]
+                    rank_text = (f" · {int(rank_ter.iloc[0])}º de {int(ranking['nota_territorial'].notna().sum())} em nota territorial"
+                                 if len(rank_ter) and pd.notna(rank_ter.iloc[0]) else "")
+                    meta = (f"Fora do ranking: sem lote ≥ {_br_number(min_lot, 0)} ha · "
+                            f"{_br_number(row.imoveis, 0)} imóveis no total{rank_text}")
+                elif min_lot > 0:
                     lot_word = "lote" if row.lotes_alvo == 1 else "lotes"
                     meta = (f"{_br_number(row.lotes_alvo, 0)} {lot_word} ≥ {_br_number(min_lot, 0)} ha "
                             f"({_br_number(row.area_lotes_alvo_ha, 0)} ha) · {_br_number(row.imoveis, 0)} imóveis no total")
@@ -1005,6 +1017,53 @@ with st.expander("Mapas individualizados", expanded=False):
                 if socio_reference_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(socio_reference_legend)}</div>', unsafe_allow_html=True)
                 st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> restrições são verificadas primeiro. Em hexágonos, embargo poligonal vigente, UC ou TI cobrindo 50% ou mais da área gera vermelho; contato menor ou embargo pontual gera laranja. Em imóveis, qualquer contato com embargo poligonal gera vermelho e embargo pontual gera laranja; em seguida, desmatamento PRODES a partir de 2021 de 1 ha ou mais gera amarelo, mesmo com abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o período PRODES com maior área.<br/><b>Leitura das cores:</b> verde-escuro até 2008; verde-claro 2009–2020; amarelo abertura a partir de 2021 (predominante no hexágono; ≥1 ha no imóvel); laranja diligência; vermelho restrição crítica. Fontes: INPE (PRODES raster 30 m, 2025–2026), Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
+        elif map_title == "Uso atual do solo" and has_landuse:
+            with st.expander("Uso atual do solo", expanded=False):
+                st.markdown('<p class="soil-description">Uso da terra em 2025: áreas já abertas e baratas favorecem a implantação.</p>', unsafe_allow_html=True)
+                controls = st.columns(2)
+                with controls[0]:
+                    show_landuse_score = st.toggle("Uso atual do solo", value=True, key="landuse_show_score")
+                with controls[1]:
+                    show_landuse_ref = st.toggle("Uso dominante MapBiomas", value=False, key="landuse_ref")
+                st.caption("Referência opcional: grupo de uso predominante do MapBiomas Coleção 11 (2025), com detalhe crescente ao aproximar (até células de 240 m). Não altera a nota já calculada.")
+                landuse_layers = []
+                if show_landuse_score:
+                    landuse_layers.extend(
+                        _mvt_layer(f"app/static/hex_uso_solo_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                                   min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
+                        for category, color in SOIL_SCORE_LAYERS
+                    )
+                if show_landuse_ref:
+                    # Paleta oficial MapBiomas: cores categóricas, não aptidão.
+                    # Vetorial como o PRODES; polígonos picotados em blocos de 32×32
+                    # células para o deck.gl nunca falhar ao triangular.
+                    landuse_layers.extend(
+                        _mvt_layer(f"app/static/uso_solo_referencia_tiles_v5/{folder}/{{z}}/{{x}}/{{y}}.pbf",
+                                   min_zoom=4, max_zoom=9, filled=True, stroked=False, get_fill_color=color, pickable=False)
+                        for folder, color in (("nativa", [31, 141, 73, 205]), ("perene", [41, 98, 196, 205]),
+                                              ("temporaria", [233, 116, 237, 205]), ("mosaico", [255, 239, 195, 215]),
+                                              ("pastagem", [237, 222, 142, 215]), ("nao_aproveitavel", [150, 160, 170, 200]))
+                    )
+                if bahia_mask:
+                    landuse_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
+                if bahia_boundary:
+                    landuse_layers.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13, 39, 67, 255], line_width_min_pixels=2.5, pickable=False))
+                st.pydeck_chart(pdk.Deck(layers=landuse_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
+                                         tooltip={"html": INDIVIDUAL_MAP_TOOLTIP}), height=500)
+                if show_landuse_score:
+                    st.markdown('''<div id="soil-legend"><strong>Uso atual do solo — nota</strong>
+                    <span class="legend-item"><i class="very-low"></i>Muito baixa</span>
+                    <span class="legend-item"><i class="low"></i>Baixa</span>
+                    <span class="legend-item"><i class="medium"></i>Média</span>
+                    <span class="legend-item"><i class="high"></i>Alta</span>
+                    <span class="legend-item"><i class="very-high"></i>Muito alta</span></div>''', unsafe_allow_html=True)
+                if show_landuse_ref:
+                    items = (("#EDDE8E", "Pastagem"), ("#FFEFC3", "Mosaico de usos"), ("#E974ED", "Lavoura temporária"),
+                             ("#2962C4", "Perene / silvicultura"), ("#1F8D49", "Vegetação nativa"), ("#96A0AA", "Água, urbano, rocha"))
+                    st.markdown('<div id="source-legend"><strong>Uso dominante MapBiomas 2025</strong>'
+                                + "".join(f'<span class="legend-item"><i style="background:{c}"></i>{t}</span>' for c, t in items)
+                                + '</div>', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> área de cada classe de uso do MapBiomas Coleção 11 (2025, pixels de 30 m) dentro do hexágono ou do imóvel. Água, área urbana, rocha e mineração ficam fora da conta.<br/><b>Fórmula:</b> Nota = Σ(% da área aproveitável no grupo × nota do grupo). Pesos: pastagem 100; mosaico de usos 75; lavoura temporária (soja, cana, algodão, arroz e outras) 50; lavoura perene e silvicultura 25; vegetação nativa 0.<br/><b>Leitura das cores:</b> do verde-escuro (predomínio de pastagem) ao vermelho (predomínio de vegetação nativa).</p>''', unsafe_allow_html=True)
         elif map_title == "Mão de obra" and not is_demo and data["mao_obra_infra"].notna().any():
             with st.expander("Mão de obra", expanded=False):
                 st.markdown('<p class="soil-description">Disponibilidade relativa de mão de obra rural por município.</p>', unsafe_allow_html=True)

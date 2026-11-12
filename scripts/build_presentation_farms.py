@@ -17,7 +17,7 @@ import shapely
 
 SCORE_FIELDS = [
     "tipo_solo", "relevo_drenagem", "clima_irrigacao", "seguranca_hidrica",
-    "risco_socioambiental", "logistica_ilheus", "custo_terra", "mao_obra_infra",
+    "risco_socioambiental", "logistica_ilheus", "custo_terra", "mao_obra_infra", "uso_solo",
 ]
 
 
