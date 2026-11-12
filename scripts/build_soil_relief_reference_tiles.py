@@ -6,10 +6,13 @@ GLO-30 slope summarized independently for every 5 km hexagon.
 """
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 
 import geopandas as gpd
 import mapbox_vector_tile
+
+from add_tooltip_text_tiles import tooltip_properties
 import mercantile
 import pandas as pd
 from shapely.geometry import box, mapping
@@ -85,7 +88,21 @@ def build_pedology(output: Path) -> int:
                 features = []
                 for row in part.itertuples(index=False):
                     multiplier = getattr(row, "ibge_pedologia_multiplicador", None)
+                    legend = str(getattr(row, "legenda", "") or "Unidade pedológica IBGE")
+                    texture = str(getattr(row, "textura", "") or "Não informada")
+                    relief = " ".join(str(getattr(row, "relevo", "") or "Não informado").split())
+                    stones = str(getattr(row, "pedregosid", "") or "Não informada")
+                    rocks = str(getattr(row, "rochosidad", "") or "Não informada")
+                    tooltip = ("<b>Pedologia IBGE 1:250.000</b>"
+                               f"<br/>Tipo de solo: {escape(legend)}"
+                               f"<br/>Textura: {escape(texture)}"
+                               f"<br/>Relevo: {escape(relief)}"
+                               f"<br/>Pedregosidade: {escape(stones)}"
+                               f"<br/>Rochosidade: {escape(rocks)}")
+                    if not pd.isna(multiplier):
+                        tooltip += f"<br/>Fator físico IBGE: {float(multiplier):.2f}".replace(".", ",")
                     features.append({"geometry": mapping(row.geometry), "properties": {
+                        **tooltip_properties(tooltip),
                         "legenda": str(getattr(row, "legenda", "") or "Unidade pedológica IBGE"),
                         "textura": str(getattr(row, "textura", "") or "Não informada"),
                         "pedregosidade": str(getattr(row, "pedregosid", "") or "Não informada"),
@@ -97,6 +114,10 @@ def build_pedology(output: Path) -> int:
                 _write(output, f"pedologia_ibge/{group}", tile, features, (bounds.west, bounds.south, bounds.east, bounds.north))
                 made += 1
     return made
+
+
+def _pct(value: object) -> str:
+    return "sem dado" if value is None or pd.isna(value) else f"{float(value):.1f}%".replace(".", ",")
 
 
 def slope_class(value: object) -> int:
@@ -125,7 +146,8 @@ def build_slope(output: Path) -> int:
     # The statistical slope layer is an overview reference.  z4–z6 matches
     # the 5 km unit scale; the score map remains available through z7.
     for zoom in range(4, 7):
-        tolerance_m = 78_271.5 / (2 ** zoom)
+        # Cap: a regular 5 km hexagon loses vertices above ~1 km tolerance.
+        tolerance_m = min(78_271.5 / (2 ** zoom), 150)
         for tile in mercantile.tiles(*frame.total_bounds, zooms=[zoom]):
             bounds = mercantile.bounds(tile)
             clipped = box(bounds.west, bounds.south, bounds.east, bounds.north)
@@ -140,7 +162,13 @@ def build_slope(output: Path) -> int:
             for category in range(1, 6):
                 features = []
                 for row in subset[subset.source_class.eq(category)].itertuples(index=False):
+                    tooltip = ("<b>Declividade COPDEM GLO-30 (30 m)</b>"
+                               f"<br/>Declividade média: {_pct(row.declividade_media_pct)}"
+                               f"<br/>Declividade máxima: {_pct(row.declividade_max_pct)}"
+                               f"<br/>Área com declividade de 25–45%: {_pct(row.declividade_25_45_pct)}"
+                               f"<br/>Área com declividade acima de 45%: {_pct(row.declividade_gt45_pct)}")
                     features.append({"geometry": mapping(row.geometry), "properties": {
+                        **tooltip_properties(tooltip),
                         "declividade_media_pct": round(float(row.declividade_media_pct), 2),
                         "declividade_max_pct": round(float(row.declividade_max_pct), 2),
                         "area_25_45_pct": round(float(row.declividade_25_45_pct), 2),
@@ -152,6 +180,6 @@ def build_slope(output: Path) -> int:
 
 
 if __name__ == "__main__":
-    target = ROOT / "static" / "solo_relevo_referencias_tiles_v1"
+    target = ROOT / "static" / "solo_relevo_referencias_tiles_v3"
     print(f"Pedologia IBGE: {build_pedology(target):,} tiles", flush=True)
     print(f"Declividade COPDEM: {build_slope(target):,} tiles", flush=True)

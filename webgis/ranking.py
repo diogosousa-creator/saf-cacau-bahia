@@ -5,8 +5,10 @@ média ponderada dos critérios com dado e peso maior que zero.  Em seguida:
 
 * nota territorial do município = média das notas dos hexágonos, ponderada
   pela área de cada hexágono dentro do município;
-* nota dos imóveis = média das notas das parcelas, ponderada pela área de cada
-  parcela (cada parcela pertence ao município com a maior parte da sua área).
+* nota dos imóveis = média das notas das parcelas, ponderada pela área
+  certificada de cada parcela (cada parcela pertence ao município com a maior
+  parte da sua área).  O tamanho do lote é a área certificada original, antes
+  do recorte visual das sobreposições.
 
 Somente tabelas são usadas aqui; nenhuma geometria é processada no app.
 """
@@ -48,11 +50,18 @@ def municipal_ranking(hex_scores: pd.DataFrame, hex_weights: pd.DataFrame, farm_
     farms = farm_scores[["id_fazenda", "area_ha", *CRITERIA]].merge(farm_municipio, on="id_fazenda", how="inner")
     farms["nota"], _ = weighted_score_available(farms, weights)
     farms["area_ha"] = pd.to_numeric(farms["area_ha"], errors="coerce").fillna(0)
+    # Lot size = certified area before the visual overlap clip (falls back to
+    # the displayed area for older link tables).  The municipal total keeps the
+    # displayed area, which has no double counting between nested parcels.
+    if "area_original_ha" in farms.columns:
+        farms["area_lote_ha"] = pd.to_numeric(farms["area_original_ha"], errors="coerce").fillna(farms["area_ha"])
+    else:
+        farms["area_lote_ha"] = farms["area_ha"]
     counts = farms.groupby("cod_mun").agg(imoveis=("id_fazenda", "size"), area_imoveis_ha=("area_ha", "sum"),
-                                          maior_lote_ha=("area_ha", "max"))
-    target = farms[farms["area_ha"] >= float(min_lot_ha)]
-    target_counts = target.groupby("cod_mun").agg(lotes_alvo=("id_fazenda", "size"), area_lotes_alvo_ha=("area_ha", "sum"))
-    farm_mean = _weighted_mean(target["nota"], target["area_ha"], target["cod_mun"]).rename("nota_imoveis")
+                                          maior_lote_ha=("area_lote_ha", "max"))
+    target = farms[farms["area_lote_ha"] >= float(min_lot_ha)]
+    target_counts = target.groupby("cod_mun").agg(lotes_alvo=("id_fazenda", "size"), area_lotes_alvo_ha=("area_lote_ha", "sum"))
+    farm_mean = _weighted_mean(target["nota"], target["area_lote_ha"], target["cod_mun"]).rename("nota_imoveis")
 
     result = (base[["cod_mun", "municipio"]].set_index("cod_mun")
               .join(territorial).join(counts).join(target_counts).join(farm_mean).join(weakest))

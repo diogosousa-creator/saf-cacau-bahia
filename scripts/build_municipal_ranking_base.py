@@ -11,7 +11,9 @@ Saídas (``data/processed``)
 * ``municipios_hex_pesos.parquet``     — área (ha) de cada hexágono dentro de
   cada município; pesos da média territorial.
 * ``municipios_imoveis.parquet``       — município de cada parcela de
-  apresentação: o que contém a maior parte da sua área.
+  apresentação (o que contém a maior parte da parcela certificada original)
+  e ``area_original_ha``: área certificada antes do recorte visual das
+  sobreposições, usada no filtro de lote mínimo do ranking.
 """
 from __future__ import annotations
 
@@ -28,6 +30,28 @@ PROCESSED = ROOT / "data" / "processed"
 MUNICIPIOS = PROCESSED / "regiao_nordeste_bahia" / "municipios_bahia_ibge.geojson"
 NOMES = PROCESSED / "regiao_nordeste_bahia" / "municipios_bahia_nomes.json"
 METRIC = "EPSG:5880"
+
+
+def original_parcels() -> gpd.GeoDataFrame:
+    """Certified area of each presentation parcel before the visual auto-clip.
+
+    The presentation layer erases overlaps between distinct parcels (the
+    smaller one stays whole), so its ``area_ha`` understates large parcels.
+    Here the parcel is rebuilt from the master base with the same key used by
+    ``build_presentation_farms.py`` (INCRA + official parcel code), without
+    any clip.  The master is already limited to Bahia and SNCI already holds
+    only its area outside SIGEF.
+    """
+    master = gpd.read_parquet(PROCESSED / "fazendas_georeferenciadas.geoparquet",
+                              columns=["id_fazenda", "identificador_incra", "identificador_oficial_poligono", "geometry"]).to_crs(METRIC)
+    incra = master["identificador_incra"].fillna("").astype(str).str.strip()
+    parcel = master["identificador_oficial_poligono"].fillna("").astype(str).str.strip()
+    parcel = parcel.where(parcel.ne(""), master["id_fazenda"].astype(str))
+    master["id_apresentacao"] = ("INCRA-" + incra).where(incra.ne(""), "SEM-INCRA") + "__PARCELA-" + parcel
+    merged = master[["id_apresentacao", "geometry"]].dissolve(by="id_apresentacao").reset_index()
+    merged = merged.rename(columns={"id_apresentacao": "id_fazenda"})
+    merged["area_original_ha"] = (merged.geometry.area / 10_000).round(2)
+    return merged
 
 
 def main() -> None:
@@ -62,7 +86,13 @@ def main() -> None:
     hex_weights["area_ha"] = hex_weights["area_ha"].round(3)
     hex_weights.to_parquet(PROCESSED / "municipios_hex_pesos.parquet", index=False)
 
-    farms = gpd.read_parquet(PROCESSED / "fazendas_apresentacao_parcelas_visual.geoparquet", columns=["id_fazenda", "geometry"]).to_crs(METRIC)
+    # Municipality and area come from the original certified parcel, not from
+    # the clipped presentation geometry (which can be a sliver of a large lot).
+    shown = pd.read_parquet(PROCESSED / "fazendas_apresentacao_parcelas_visual.geoparquet", columns=["id_fazenda"])
+    originals = original_parcels()
+    farms = originals[originals["id_fazenda"].isin(shown["id_fazenda"])][["id_fazenda", "geometry"]].copy()
+    if len(farms) != len(shown):
+        raise RuntimeError(f"{len(shown) - len(farms)} parcelas de apresentação sem geometria original.")
     farms["geometry"] = farms.geometry.make_valid()
     farm_pieces = gpd.overlay(farms, metric[["cod_mun", "geometry"]], how="intersection", keep_geom_type=True)
     farm_pieces["area_ha"] = farm_pieces.geometry.area / 10_000
@@ -75,7 +105,10 @@ def main() -> None:
         rest["geometry"] = rest.geometry.representative_point()
         near = gpd.sjoin_nearest(rest, metric[["cod_mun", "geometry"]], how="left")[["id_fazenda", "cod_mun"]]
         best = pd.concat([best[["id_fazenda", "cod_mun"]], near.drop_duplicates("id_fazenda")], ignore_index=True)
-    best[["id_fazenda", "cod_mun"]].to_parquet(PROCESSED / "municipios_imoveis.parquet", index=False)
+    best = best[["id_fazenda", "cod_mun"]].merge(originals[["id_fazenda", "area_original_ha"]], on="id_fazenda", how="left")
+    if best["area_original_ha"].isna().any():
+        raise RuntimeError(f"{int(best['area_original_ha'].isna().sum())} parcelas sem área original.")
+    best.to_parquet(PROCESSED / "municipios_imoveis.parquet", index=False)
 
     print(f"Municípios: {len(base)} | vínculos hexágono–município: {len(hex_weights):,} | "
           f"parcelas: {best['id_fazenda'].nunique():,} (sem interseção: {len(missing)})")

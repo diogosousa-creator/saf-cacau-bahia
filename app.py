@@ -67,6 +67,11 @@ def _streamlit_static_tile_url(tile_path: str) -> str:
     return f"{base}/{tile_path.lstrip('/')}"
 
 
+# Every individual-map tile carries its pt-BR tooltip split in lines t0…t6
+# (scripts/add_tooltip_text_tiles.py); stacked sources share this template.
+INDIVIDUAL_MAP_TOOLTIP = "<b>{t0}</b>{t1}{t2}{t3}{t4}{t5}{t6}"
+
+
 def _mvt_layer(tile_path: str, **kwargs: object) -> pdk.Layer:
     """Create an individual-map MVT layer with a Cloud-safe static URL."""
     return pdk.Layer("MVTLayer", _streamlit_static_tile_url(tile_path), **kwargs)
@@ -493,8 +498,15 @@ RANKING_CSS = """<style>
 .rk-weak span { display:block; font-size:.68rem; color:#657383; text-transform:uppercase; letter-spacing:.04em; }
 .rk-weak em { font-style:normal; font-size:.78rem; color:#40566d; }
 .rk-head { display:grid; grid-template-columns:34px minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1fr); gap:1rem; padding:.2rem .4rem .4rem; font-size:.68rem; color:#8a97a5; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #d5dde5; margin-right:3.2rem; }
-.rk-foot { font-size:.7rem; color:#8a97a5; line-height:1.45; margin-top:.4rem; }
 </style>"""
+
+
+def _pick_municipio() -> None:
+    """Search box callback: frame the chosen municipality and reset the box."""
+    cod = st.session_state.get("ranking_busca")
+    if cod is not None:
+        st.session_state["municipio_foco"] = int(cod)
+        st.session_state["ranking_busca"] = None
 
 
 def _rank_bar(label: str, value: object) -> str:
@@ -525,6 +537,11 @@ with st.expander("Ranking de municípios para prospecção", expanded=False):
                              help="Remover o enquadramento do município no mapa geral"):
                     st.session_state["municipio_foco"] = None
                     st.rerun()
+            else:
+                names = dict(zip(ranking["cod_mun"].astype(int), ranking["municipio"]))
+                st.selectbox("Buscar município", sorted(names, key=lambda cod: names[cod]), index=None,
+                             format_func=names.get, placeholder="Buscar município", key="ranking_busca",
+                             on_change=_pick_municipio, label_visibility="collapsed")
         with top_bar[2]:
             with st.popover(f"Lote ≥ {_br_number(min_lot, 0)} ha", icon=":material/tune:", use_container_width=True):
                 st.number_input("Tamanho mínimo do lote (ha)", min_value=0, max_value=200_000,
@@ -536,8 +553,20 @@ with st.expander("Ranking de municípios para prospecção", expanded=False):
         table = table.sort_values(sort_column, ascending=False).reset_index(drop=True)
         shown = int(st.session_state.get("ranking_n", 10))
         lots_label = f"Nota dos lotes ≥ {_br_number(min_lot, 0)} ha" if min_lot > 0 else "Nota dos imóveis"
+        # A municipality chosen in the search keeps its real position: when it
+        # is beyond the visible rows it is appended, highlighted, after them.
+        rows = list(range(min(shown, len(table))))
+        if focus_cod:
+            match = table.index[table["cod_mun"] == focus_cod]
+            if len(match) and int(match[0]) >= shown:
+                rows.append(int(match[0]))
+            elif not len(match):
+                name = ranking.loc[ranking["cod_mun"] == focus_cod, "municipio"]
+                st.caption(f"{name.iloc[0] if len(name) else 'Este município'} está enquadrado no mapa, mas não tem "
+                           f"lote certificado de {_br_number(min_lot, 0)} ha ou mais e por isso não entra no ranking.")
         with st.container(key="ranking_lista"):
-            for position, row in enumerate(table.head(shown).itertuples(index=False), start=1):
+            for index in rows:
+                position, row = index + 1, next(table.iloc[[index]].itertuples(index=False))
                 cod = int(row.cod_mun)
                 selected = " selected" if focus_cod == cod else ""
                 top = " top" if position <= 3 else ""
@@ -560,17 +589,9 @@ with st.expander("Ranking de municípios para prospecção", expanded=False):
                                  type="primary" if selected else "tertiary", help=f"Enquadrar {row.municipio} no mapa geral"):
                         st.session_state["municipio_foco"] = cod
                         st.rerun()
-        foot = st.columns([1.2, 4], vertical_alignment="center")
-        with foot[0]:
-            if shown < len(table) and st.button("Mostrar mais 10", key="ranking_mais", type="tertiary", icon=":material/expand_more:"):
-                st.session_state["ranking_n"] = shown + 10
-                st.rerun()
-        with foot[1]:
-            scope = f"com pelo menos um lote de {_br_number(min_lot, 0)} ha" if min_lot > 0 else "com imóveis certificados"
-            st.markdown(f'<p class="rk-foot">{len(table)} municípios {scope}. '
-                        'Recalculado com os pesos da barra lateral. Território: média dos hexágonos ponderada pela área no município. '
-                        'Imóveis: média dos lotes selecionados ponderada pela área; cada lote conta no município que contém a maior parte dele.</p>',
-                        unsafe_allow_html=True)
+        if shown < len(table) and st.button("Mostrar mais 10", key="ranking_mais", type="tertiary", icon=":material/expand_more:"):
+            st.session_state["ranking_n"] = shown + 10
+            st.rerun()
 
 with st.expander("Mapas individualizados", expanded=False):
     st.markdown(
@@ -602,7 +623,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 if show_soil_score:
                     soil_layers.extend(
                         _mvt_layer(
-                            f"app/static/hex_soil_tiles_v6/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/hex_soil_tiles_v8/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, wireframe=False,
                             get_fill_color=color, get_line_color=[0, 0, 0, 0], get_line_width=0,
                             line_width_min_pixels=0, line_width_max_pixels=0, pickable=True,
@@ -619,7 +640,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     }
                     for category, color in texture_colors.items():
                         soil_layers.append(_mvt_layer(
-                            f"app/static/hex_soil_tiles_v6/raw/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/hex_soil_tiles_v8/raw/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True,
                         ))
                 if show_soil_pedology:
@@ -642,7 +663,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     }
                     for group, color in pedology_colors.items():
                         soil_layers.append(_mvt_layer(
-                            f"app/static/solo_relevo_referencias_tiles_v1/pedologia_ibge/{group}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/solo_relevo_referencias_tiles_v3/pedologia_ibge/{group}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=5, max_zoom=7, filled=True, stroked=True,
                             get_fill_color=color, get_line_color=[90, 93, 92, 185],
                             line_width_units="pixels", line_width_min_pixels=0.45, pickable=True,
@@ -655,7 +676,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     pdk.Deck(
                         layers=soil_layers,
                         initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
-                        tooltip={"html": "<b>Qualidade física do solo</b><br/>Nota: {nota_mapa}/100<br/>Classe: {classe_mapa}<br/>Textura dominante: {solo_textura_dominante}"},
+                        tooltip={"html": INDIVIDUAL_MAP_TOOLTIP},
                     ),
                     height=500,
                 )
@@ -711,7 +732,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 if show_relief_score:
                     relief_layers.extend(
                         _mvt_layer(
-                            f"app/static/hex_relief_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/hex_relief_tiles_v3/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False,
                             get_fill_color=color, pickable=True,
                         )
@@ -724,7 +745,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     }
                     for category, color in slope_colors.items():
                         relief_layers.append(_mvt_layer(
-                            f"app/static/solo_relevo_referencias_tiles_v1/declividade_media/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/solo_relevo_referencias_tiles_v3/declividade_media/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=6, filled=True, stroked=False, get_fill_color=color, pickable=True,
                         ))
                 if bahia_mask:
@@ -734,7 +755,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 st.pydeck_chart(pdk.Deck(
                     layers=relief_layers,
                     initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
-                    tooltip={"html": "<b>Declividade e Relevo</b><br/>Nota: {nota_mapa}/100<br/>Classe: {classe_mapa}"},
+                    tooltip={"html": INDIVIDUAL_MAP_TOOLTIP},
                 ), height=500)
                 if show_relief_score:
                     st.markdown('''<div id="soil-legend"><strong>Condição topográfica — nota</strong>
@@ -766,7 +787,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 if show_climate_score:
                     climate_layers.extend(
                         _mvt_layer(
-                            f"app/static/hex_climate_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                            f"app/static/hex_climate_tiles_v3/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False,
                             get_fill_color=color, pickable=True,
                         )
@@ -784,19 +805,14 @@ with st.expander("Mapas individualizados", expanded=False):
                     if enabled:
                         for category, color in enumerate(colors, start=1):
                             climate_layers.append(_mvt_layer(
-                                f"app/static/hex_climate_referencias_tiles_v1/{source}/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                                f"app/static/hex_climate_referencias_tiles_v3/{source}/{category}/{{z}}/{{x}}/{{y}}.pbf",
                                 min_zoom=4, max_zoom=6, filled=True, stroked=False, get_fill_color=color, pickable=True,
                             ))
                 if bahia_mask:
                     climate_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
                 if bahia_boundary:
                     climate_layers.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13, 39, 67, 255], line_width_min_pixels=2.5, pickable=False))
-                climate_reference_active = any((show_climate_p, show_climate_pe, show_climate_dry, show_climate_tmean, show_climate_tmax, show_climate_demand))
-                climate_tooltip = (
-                    {"html": "<b>Camada climática de referência</b><br/>Valor: {valor}"}
-                    if climate_reference_active else
-                    {"html": "<b>Clima e irrigação</b><br/>Nota: {nota_mapa}/100<br/>Temperatura média: {clima_tmean_c} °C<br/>Tmax P95: {clima_tmax_p95_c} °C<br/>Demanda P80: {clima_demanda_irrigacao_p80_mm} mm/ano<br/>Sequência seca: {clima_dryseq_months} meses<br/>Precipitação efetiva: {clima_pe_mm} mm/ano"}
-                )
+                climate_tooltip = {"html": INDIVIDUAL_MAP_TOOLTIP}
                 st.pydeck_chart(pdk.Deck(
                     layers=climate_layers,
                     initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
@@ -837,7 +853,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 water_layers = []
                 if show_water_hexagons:
                     water_layers.extend(
-                    _mvt_layer(f"app/static/hex_water_security_tiles_v8/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                    _mvt_layer(f"app/static/hex_water_security_tiles_v10/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                             min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
@@ -864,7 +880,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     water_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
                 if bahia_boundary:
                     water_layers.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13, 39, 67, 255], line_width_min_pixels=2.5, pickable=False))
-                st.pydeck_chart(pdk.Deck(layers=water_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": "<b>Segurança hídrica — evidência preliminar</b><br/>Nota: {nota_mapa}/100<br/>Captação superficial outorgada ativa no imóvel: {outorga_ativa_no_imovel} ({outorga_ativa_qtd})<br/>Outorga subterrânea ativa no imóvel: {outorga_subterranea_ativa_qtd}<br/>Outorga subterrânea inativa/não confirmada no imóvel: {outorga_subterranea_inativa_qtd}<br/>Poços ativos com teste: no imóvel {pocos_ativos_testados_no_imovel}; até 2 km {pocos_ativos_testados_2km}<br/>Poços incertos/inativos/sem teste no imóvel: {pocos_incertos_no_imovel}<br/>Confiança: {confianca}"}), height=500)
+                st.pydeck_chart(pdk.Deck(layers=water_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": INDIVIDUAL_MAP_TOOLTIP}), height=500)
                 if show_water_hexagons:
                     st.markdown('''<div id="soil-legend"><strong>Evidência hídrica regional</strong>
                     <span class="legend-item"><i class="very-low"></i>Muito baixa</span><span class="legend-item"><i class="low"></i>Baixa</span><span class="legend-item"><i class="medium"></i>Média</span><span class="legend-item"><i class="high"></i>Alta</span><span class="legend-item"><i class="very-high"></i>Muito alta</span></div>''', unsafe_allow_html=True)
@@ -883,7 +899,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 st.markdown('<p class="soil-description">Valor de referência da terra nua agrícola (VTN), em R$/ha.</p>', unsafe_allow_html=True)
                 land_layers = [
                     _mvt_layer(
-                        f"app/static/hex_custo_terra_tiles_v1/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        f"app/static/hex_custo_terra_tiles_v3/score/{category}/{{z}}/{{x}}/{{y}}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=color, pickable=True,
                     )
@@ -896,7 +912,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 st.pydeck_chart(pdk.Deck(
                     layers=land_layers,
                     initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
-                    tooltip={"html": "<b>Referência regional de custo da terra</b><br/>VTN agrícola: R$ {vtn_rs_ha}/ha<br/>Classe: {classe_mapa}<br/>Nota de custo: {nota_mapa}/100<br/>MRT: {mrt_id}<br/>Origem: {origem}<br/>Ano-base: {ano_base}<br/>Confiança: {confianca}<br/>Intervalo indicativo 80%: ±{intervalo_80_pct}%"},
+                    tooltip={"html": INDIVIDUAL_MAP_TOOLTIP},
                 ), height=500)
                 st.markdown('''<div id="soil-legend"><strong>Referência regional de custo da terra</strong>
                 <span class="legend-item"><i class="very-low"></i>Muito alto</span>
@@ -910,13 +926,13 @@ with st.expander("Mapas individualizados", expanded=False):
                 st.markdown('<p class="soil-description">Distância rodoviária até o ponto de recebimento de cacau em Iguape, Ilhéus/BA.</p>', unsafe_allow_html=True)
                 logistics_layers = [
                     _mvt_layer(
-                        "app/static/hex_logistica_ilheus_tiles_v4/distance/0/{z}/{x}/{y}.pbf",
+                        "app/static/hex_logistica_ilheus_tiles_v6/distance/0/{z}/{x}/{y}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=[196, 202, 208, 175], pickable=True,
                     ),
                 ] + [
                     _mvt_layer(
-                        f"app/static/hex_logistica_ilheus_tiles_v4/distance/{category}/{{z}}/{{x}}/{{y}}.pbf",
+                        f"app/static/hex_logistica_ilheus_tiles_v6/distance/{category}/{{z}}/{{x}}/{{y}}.pbf",
                         min_zoom=4, max_zoom=7, filled=True, stroked=False,
                         get_fill_color=color, pickable=True,
                     )
@@ -929,7 +945,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 st.pydeck_chart(pdk.Deck(
                     layers=logistics_layers,
                     initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15),
-                    tooltip={"html": "<b>Logística até Ilhéus</b><br/>Distância rodoviária: {distancia_rota_km} km<br/>Classe: {classe_mapa}<br/>Nota normalizada: {nota_mapa}/100<br/>Conexão à rede: {distancia_snap_km} km<br/>Confiança: {confianca}<br/>Destino: {destino}"},
+                    tooltip={"html": INDIVIDUAL_MAP_TOOLTIP},
                 ), height=500)
                 st.markdown(f'''<div id="soil-legend"><strong>Distância por rota até Ilhéus</strong>
                 <span class="legend-item"><i class="very-low"></i>&gt;{_log_cut_35:.0f} km</span>
@@ -956,7 +972,7 @@ with st.expander("Mapas individualizados", expanded=False):
                 socio_layers = []
                 if show_socio_hex:
                     socio_layers.extend(
-                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v2/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
+                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v4/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
                 if show_prodes:
@@ -976,7 +992,7 @@ with st.expander("Mapas individualizados", expanded=False):
                     socio_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
                 if bahia_boundary:
                     socio_layers.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13, 39, 67, 255], line_width_min_pixels=2.5, pickable=False))
-                st.pydeck_chart(pdk.Deck(layers=socio_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": "<b>PRODES e embargos</b><br/>Classe: {classe_mapa}<br/>Até 2008: {prodes_ate_2008_ha} ha<br/>2009–2020: {prodes_2009_2020_ha} ha<br/>Após 2020: {prodes_pos_2020_ha} ha<br/>Restrição territorial unida: {restricao_unida_pct}%<br/>Alertas: {alertas}"}), height=500)
+                st.pydeck_chart(pdk.Deck(layers=socio_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": INDIVIDUAL_MAP_TOOLTIP}), height=500)
                 if show_socio_hex:
                     st.markdown('''<div id="soil-legend"><strong>Triagem socioambiental</strong><span class="legend-item"><i class="very-low"></i>Restrição crítica</span><span class="legend-item"><i class="low"></i>Diligência</span><span class="legend-item"><i class="medium"></i>Após 2020 predominante</span><span class="legend-item"><i class="high"></i>2009–2020 predominante</span><span class="legend-item"><i class="very-high"></i>Até 2008 predominante</span></div>''', unsafe_allow_html=True)
                 socio_reference_legend = []
@@ -999,10 +1015,10 @@ with st.expander("Mapas individualizados", expanded=False):
                 layers_labor = []
                 for active_layer, theme in ((show_labor_index, "indice"), (show_labor_agro, "pessoal_rural"), (show_labor_pop, "populacao")):
                     if active_layer:
-                        layers_labor.extend(_mvt_layer(f"app/static/hex_mao_obra_tiles_v1/{theme}/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True) for category, color in SOIL_SCORE_LAYERS)
+                        layers_labor.extend(_mvt_layer(f"app/static/hex_mao_obra_tiles_v3/{theme}/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True) for category, color in SOIL_SCORE_LAYERS)
                 if bahia_mask: layers_labor.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238,240,242,205], pickable=False))
                 if bahia_boundary: layers_labor.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13,39,67,255], line_width_min_pixels=2.5, pickable=False))
-                st.pydeck_chart(pdk.Deck(layers=layers_labor, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html":"<b>Contexto municipal de mão de obra</b><br/>Nota preliminar: {nota_mapa}/100<br/>Pessoal ocupado rural (2017): {pessoal_rural_2017}<br/>População (2022): {populacao_2022}<br/>Município dominante: {municipio}<br/>Cobertura municipal: {cobertura_pct}%<br/>Confiança: {confianca}<br/>Alertas: {alertas}"}), height=500)
+                st.pydeck_chart(pdk.Deck(layers=layers_labor, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": INDIVIDUAL_MAP_TOOLTIP}), height=500)
                 if show_labor_index:
                     st.markdown('''<div id="soil-legend"><strong>Contexto municipal de mão de obra — índice</strong><span class="legend-item"><i class="very-low"></i>Muito baixo</span><span class="legend-item"><i class="low"></i>Baixo</span><span class="legend-item"><i class="medium"></i>Médio</span><span class="legend-item"><i class="high"></i>Alto</span><span class="legend-item"><i class="very-high"></i>Muito alto</span></div>''', unsafe_allow_html=True)
                 if show_labor_agro or show_labor_pop:

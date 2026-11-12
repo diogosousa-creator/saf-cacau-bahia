@@ -99,6 +99,15 @@ hexágono no município. Nota dos imóveis: média das parcelas ponderada pela �
 cada parcela conta no município que contém a maior parte dela. Ao clicar em um
 município, o mapa geral enquadra o município e destaca seu contorno.
 
+## Tooltips e geometria dos mapas temáticos
+
+Cada mapa temático empilha fontes com atributos diferentes (nota, MapBiomas, IBGE, COPDEM, referências climáticas) sob um único tooltip do pydeck. Por isso cada feição traz o próprio texto em português dividido nas linhas `t0…t6`, e todos os mapas usam o modelo `INDIVIDUAL_MAP_TOOLTIP` do `app.py`. Linhas separadas permitem que valores repetidos sejam gravados uma vez por tile.
+
+- Solo, relevo, Pedologia IBGE e declividade COPDEM: gerados direto por `build_soil_hex_vector_tiles.py` (`--tooltip soil|relief`) e `build_soil_relief_reference_tiles.py`.
+- Clima, segurança hídrica, custo da terra, logística, PRODES e mão de obra: `scripts/add_tooltip_text_tiles.py --kind … --fix-hex-geometry` sobre a versão anterior dos tiles, sem recalcular valores.
+
+A simplificação dos hexágonos de 5 km fica limitada a ~150 m: com a tolerância antiga (~78 km/2^z) todos os hexágonos viravam quadriláteros nos zooms 4–5, deixando frestas no mapa. `--fix-hex-geometry` restaura o hexágono verdadeiro da grade `bahia_hex_5km.geojson`.
+
 ## Limitações
 
 SIGEF, SNCI e a triagem espacial não comprovam propriedade, regularidade ambiental, concessão de outorga ou elegibilidade para exportação. A aplicação prioriza áreas para diligência comercial e técnica.
