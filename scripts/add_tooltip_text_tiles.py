@@ -156,10 +156,10 @@ def tt_logistica(p: dict) -> str:
 def tt_prodes(p: dict) -> str:
     return ("<b>PRODES e embargos</b>"
             + f"<br/>{p.get('classe_mapa') or 'sem classe'}"
-            + f"<br/>Desmatamento PRODES até 2008: {num(p.get('prodes_ate_2008_ha'), 0)} ha"
-            + f"<br/>Desmatamento PRODES 2009–2020: {num(p.get('prodes_2009_2020_ha'), 0)} ha"
-            + f"<br/>Desmatamento PRODES a partir de 2021: {num(p.get('prodes_pos_2020_ha'), 0)} ha"
-            + f"<br/>Área com embargo, UC ou TI: {num(p.get('restricao_unida_pct'), 0)}%"
+            + f"<br/>PRODES até 2008: {num(p.get('prodes_ate_2008_ha'), 0)} ha · 2009–2014: {num(p.get('prodes_2009_2014_ha'), 0)} ha"
+            + f"<br/>PRODES 2015–2020: {num(p.get('prodes_2015_2020_ha'), 0)} ha · a partir de 2021: {num(p.get('prodes_pos_2020_ha'), 0)} ha"
+            + f"<br/>Embargo Ibama: {num(p.get('embargo_poligonal_ha'), 1)} ha em polígono · {count(p.get('embargo_pontual_qtd'))} pontual(is)"
+            + f"<br/>UC/TI na unidade: {num(p.get('uc_pct'), 1)}% / {num(p.get('ti_pct'), 1)}% (alerta, não muda a cor)"
             + f"<br/>Alertas: {alerts(p)}")
 
 

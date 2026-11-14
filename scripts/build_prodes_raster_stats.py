@@ -32,15 +32,19 @@ MOSAIC = ROOT / "data" / "interim" / "prodes_bahia_30m.tif"
 PROCESSED = ROOT / "data" / "processed"
 
 # Grupos analíticos a partir do código unificado (ano − 2000).
-GROUPS = ["pre2008", "2009_2020", "post2020", "vegetacao_nativa", "hidrografia", "nao_observado", "outros"]
+# Quatro períodos: até 2008 (marco do Código Florestal), 2009–2014, 2015–2020
+# (o "ano 2020" do PRODES termina em jul/2020, antes do marco EUDR 31/12/2020)
+# e a partir de 2021.
+GROUPS = ["pre2008", "2009_2014", "2015_2020", "post2020", "vegetacao_nativa", "hidrografia", "nao_observado", "outros"]
 LUT = np.zeros(256, dtype=np.uint8)          # 0 = sem dado (255)
 LUT[0:9] = 1                                  # d2000…d2008 (acumulado até 2000 + 2001–2008)
-LUT[9:21] = 2                                 # 2009–2020
-LUT[21:41] = 3                                # 2021 em diante
-LUT[91] = 5
-LUT[99] = 6
-LUT[100] = 4
-LUT[101] = 7
+LUT[9:15] = 2                                 # 2009–2014
+LUT[15:21] = 3                                # 2015–2020
+LUT[21:41] = 4                                # 2021 em diante
+LUT[100] = 5
+LUT[91] = 6
+LUT[99] = 7
+LUT[101] = 8
 NGROUP = len(GROUPS) + 1
 DISPLAY_FACTOR = 8
 
@@ -122,7 +126,7 @@ def main() -> None:
         r8, c8 = rows // DISPLAY_FACTOR * DISPLAY_FACTOR, cols // DISPLAY_FACTOR * DISPLAY_FACTOR
         if r8 and c8:
             g = group[:r8, :c8].reshape(r8 // DISPLAY_FACTOR, DISPLAY_FACTOR, c8 // DISPLAY_FACTOR, DISPLAY_FACTOR)
-            counts = np.stack([(g == k).sum(axis=(1, 3)) for k in (1, 2, 3)], axis=0)
+            counts = np.stack([(g == k).sum(axis=(1, 3)) for k in (1, 2, 3, 4)], axis=0)
             valid = (g > 0).sum(axis=(1, 3))
             deforested = counts.sum(axis=0)
             cls = np.where((valid > 0) & (deforested * 2 >= valid), counts.argmax(axis=0) + 1, 0).astype(np.uint8)

@@ -28,8 +28,8 @@ def parcel_map(*, weights: dict[str, int], active_id: str | None, view_state: di
         bahia_mask=bahia_mask,
         bahia_boundary=bahia_boundary,
         focus=focus,
-        hex_tiles="/app/static/hex_base_tiles_v17/{z}/{x}/{y}.pbf",
-        parcel_tiles="/app/static/imoveis_apresentacao_parcelas_tiles_v25/{z}/{x}/{y}.pbf",
+        hex_tiles="/app/static/hex_base_tiles_v18/{z}/{x}/{y}.pbf",
+        parcel_tiles="/app/static/imoveis_apresentacao_parcelas_tiles_v26/{z}/{x}/{y}.pbf",
         default=None,
         key=key,
     )

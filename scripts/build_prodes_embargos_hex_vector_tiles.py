@@ -13,7 +13,7 @@ from shapely.geometry import box, mapping
 
 
 CLASS_CODE = {"Vermelho": 1, "Laranja": 2, "Amarelo": 3, "Verde claro": 4, "Verde escuro": 5}
-CLASS_LABEL = {1: "Vermelho – restrição crítica", 2: "Laranja – diligência necessária", 3: "Amarelo – abertura após 2020 predominante", 4: "Verde claro – abertura 2009–2020 predominante", 5: "Verde escuro – abertura até 2008 predominante"}
+CLASS_LABEL = {1: "Vermelho – embargo Ibama vigente", 2: "Laranja – desmatamento a partir de 2021", 3: "Amarelo – desmatamento 2015–2020", 4: "Verde claro – desmatamento 2009–2014", 5: "Verde escuro – abertura até 2008"}
 
 
 def n(value, places=1):
@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--minzoom", type=int, default=4)
     parser.add_argument("--maxzoom", type=int, default=7)
     args = parser.parse_args()
-    fields = ["id", "classe_prodes_embargos", "risco_socioambiental", "prodes_pre2008_ha", "prodes_2009_2020_ha", "prodes_post2020_ha", "embargo_intersecao_pct", "uc_intersecao_pct", "ti_intersecao_pct", "restricao_unida_pct", "embargo_pontual_qtd", "risco_socioambiental_alert_flags"]
+    fields = ["id", "classe_prodes_embargos", "risco_socioambiental", "prodes_pre2008_ha", "prodes_2009_2014_ha", "prodes_2015_2020_ha", "prodes_post2020_ha", "embargo_intersecao_ha", "embargo_intersecao_pct", "uc_intersecao_pct", "ti_intersecao_pct", "restricao_unida_pct", "embargo_pontual_qtd", "risco_socioambiental_alert_flags"]
     stats = pd.read_parquet(args.assessments, columns=fields)
     units = gpd.read_file(args.hex).to_crs("EPSG:4326").merge(stats, left_on="id_hex", right_on="id", how="left", validate="one_to_one")
     units["class_code"] = units["classe_prodes_embargos"].map(CLASS_CODE).fillna(0).astype(int)
@@ -53,7 +53,7 @@ def main() -> None:
                     features.append({"geometry": mapping(row.geometry), "properties": {
                         "referencia_exibicao": "Análise territorial",
                         "classe_mapa": CLASS_LABEL[code], "nota_mapa": n(row.risco_socioambiental),
-                        "prodes_ate_2008_ha": n(row.prodes_pre2008_ha), "prodes_2009_2020_ha": n(row.prodes_2009_2020_ha), "prodes_pos_2020_ha": n(row.prodes_post2020_ha),
+                        "prodes_ate_2008_ha": n(row.prodes_pre2008_ha), "prodes_2009_2014_ha": n(row.prodes_2009_2014_ha), "prodes_2015_2020_ha": n(row.prodes_2015_2020_ha), "prodes_pos_2020_ha": n(row.prodes_post2020_ha), "embargo_poligonal_ha": n(row.embargo_intersecao_ha, 2),
                         "embargo_poligonal_pct": n(row.embargo_intersecao_pct, 2), "uc_pct": n(row.uc_intersecao_pct, 2), "ti_pct": n(row.ti_intersecao_pct, 2), "restricao_unida_pct": n(row.restricao_unida_pct, 2), "embargo_pontual_qtd": int(row.embargo_pontual_qtd or 0), "alertas": str(row.risco_socioambiental_alert_flags or "[]"),
                     }})
                 if not features:

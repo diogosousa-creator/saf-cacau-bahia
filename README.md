@@ -73,16 +73,19 @@ Processamento:
 .venv/bin/python scripts/ingest_prodes_embargos.py --reuse-restrictions
 ```
 
-Hexágonos ficam vermelhos quando a união de embargo poligonal vigente, UC e
-TI alcança 50% ou mais de sua área; qualquer interseção menor fica laranja.
-Sem restrição, a classe temporal é o período PRODES de maior área (até 2008,
-2009–2020 ou a partir de 2021).
+Qualquer embargo Ibama vigente (poligonal ou pontual) leva a unidade a
+vermelho. Sem embargo, vale o período PRODES mais recente cujo desmatamento
+chega a 5% da área mapeada da unidade (≈108 ha no hexágono de 5 km):
 
-Em imóveis certificados, qualquer toque de embargo poligonal vigente fica
-vermelho e embargo pontual fica laranja, sem buffer. Em seguida, qualquer
-desmatamento PRODES a partir de 2021 de 1 ha ou mais fica amarelo, mesmo com
-abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o
-período de maior área. UC/TI permanecem como alertas explícitos para os imóveis.
+| Classe | Condição | Nota |
+|---|---|---|
+| Verde escuro | nada relevante depois de 2008 (marco do Código Florestal) | 100 |
+| Verde claro | 2009–2014 | 75 |
+| Amarelo | 2015–2020 (o "ano 2020" do PRODES termina em jul/2020, antes do marco EUDR de 31/12/2020) | 50 |
+| Laranja | a partir de 2021; nos imóveis, 1 ha ou mais já basta | 25 |
+| Vermelho | embargo Ibama vigente | 0 |
+
+UC e TI não mudam a cor: ficam como alerta explícito na caixa de informação.
 
 ## Ranking de municípios
 

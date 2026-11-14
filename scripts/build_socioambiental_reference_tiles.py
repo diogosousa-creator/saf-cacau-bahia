@@ -61,7 +61,7 @@ def prodes_from_raster(path: Path) -> gpd.GeoDataFrame:
         # Remove isolated single cells: they are not legible at the map scale
         # and the analytical areas are computed separately from the 30 m raster.
         data = sieve(data, size=2, connectivity=8)
-        periods = {1: "pre2008", 2: "2009_2020", 3: "post2020"}
+        periods = {1: "pre2008", 2: "2009_2014", 3: "2015_2020", 4: "post2020"}
         records = [
             {"periodo": periods[int(value)], "geometry": shape(geom)}
             for geom, value in shapes(data, mask=data > 0, transform=src.transform, connectivity=8)
@@ -86,7 +86,8 @@ def main() -> None:
         prodes = prodes_from_raster(args.prodes_raster)
         layers.update({
             "prodes_ate_2008": prodes[prodes.periodo.eq("pre2008")],
-            "prodes_2009_2020": prodes[prodes.periodo.eq("2009_2020")],
+            "prodes_2009_2014": prodes[prodes.periodo.eq("2009_2014")],
+            "prodes_2015_2020": prodes[prodes.periodo.eq("2015_2020")],
             "prodes_pos_2020": prodes[prodes.periodo.eq("post2020")],
         })
     if not args.only_prodes:

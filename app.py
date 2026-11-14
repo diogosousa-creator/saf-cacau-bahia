@@ -298,7 +298,7 @@ def apply_hf_layout() -> None:
           #source-legend .rain-1 { background:#f7fbff; } #source-legend .rain-2 { background:#c6dbef; } #source-legend .rain-3 { background:#6baed6; } #source-legend .rain-4 { background:#3182bd; } #source-legend .rain-5 { background:#08519c; }
           #source-legend .heat-1 { background:#ffffcc; } #source-legend .heat-2 { background:#fed976; } #source-legend .heat-3 { background:#fd8d3c; } #source-legend .heat-4 { background:#e31a1c; } #source-legend .heat-5 { background:#800026; }
           #source-legend .demand-1 { background:#f2f0f7; } #source-legend .demand-2 { background:#cbc9e2; } #source-legend .demand-3 { background:#9e9ac8; } #source-legend .demand-4 { background:#756bb1; } #source-legend .demand-5 { background:#54278f; }
-          #source-legend .water-seasonal { background:#53a8bf; } #source-legend .water-persistent { background:#15699d; } #source-legend .bho { background:#206f9e; } #source-legend .well { background:#145682; border-radius:50%; } #source-legend .prodes-old { background:#348b4b; } #source-legend .prodes-mid { background:#98bf53; } #source-legend .prodes-new { background:#f6cc3f; } #source-legend .embargo { background:#80202b; } #source-legend .uc { background:#435c7d; } #source-legend .ti { background:#63488b; }
+          #source-legend .water-seasonal { background:#53a8bf; } #source-legend .water-persistent { background:#15699d; } #source-legend .bho { background:#206f9e; } #source-legend .well { background:#145682; border-radius:50%; } #source-legend .prodes-old { background:#348b4b; } #source-legend .prodes-mid { background:#98bf53; } #source-legend .prodes-new { background:#f6cc3f; } #source-legend .prodes-recent { background:#eb7a2f; } #source-legend .embargo { background:#80202b; } #source-legend .uc { background:#435c7d; } #source-legend .ti { background:#63488b; }
           .soil-description { margin:.1rem 0 1rem; color:#657383; font-size:1rem; line-height:1.5; }
           .soil-methodology, .soil-methodology * { max-width:980px; margin:.1rem 0 1.4rem; color:#111 !important; font-size:.66rem !important; line-height:1.42; }
           @media (max-width: 760px) { #map-legend { gap:.45rem; padding:.5rem .6rem; font-size:.66rem; } #map-legend strong { display:none; } div.stElementContainer:has(#map-legend) { margin-top:-3.55rem; } }
@@ -986,21 +986,22 @@ with st.expander("Mapas individualizados", expanded=False):
                 socio_layers = []
                 if show_socio_hex:
                     socio_layers.extend(
-                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v4/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
+                        _mvt_layer(f"app/static/hex_prodes_embargos_tiles_v6/score/{category}/{{z}}/{{x}}/{{y}}.pbf", min_zoom=4, max_zoom=7, filled=True, stroked=False, get_fill_color=color, pickable=True)
                         for category, color in SOIL_SCORE_LAYERS
                     )
                 if show_prodes:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[52, 139, 75, 190], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_2009_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[152, 191, 83, 200], pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[246, 204, 63, 215], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/prodes_ate_2008/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[52, 139, 75, 190], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/prodes_2009_2014/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[152, 191, 83, 200], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/prodes_2015_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[246, 204, 63, 215], pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/prodes_pos_2020/{z}/{x}/{y}.pbf", min_zoom=8, max_zoom=9, filled=True, stroked=False, get_fill_color=[235, 122, 47, 220], pickable=False),
                     ])
                 if show_embargos:
-                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v3/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
+                    socio_layers.append(_mvt_layer("app/static/socioambiental_referencias_tiles_v4/embargos_ibama/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=True, stroked=True, get_fill_color=[128, 32, 43, 75], get_line_color=[128, 32, 43, 220], line_width_min_pixels=1, pickable=False))
                 if show_territories:
                     socio_layers.extend([
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
-                        _mvt_layer("app/static/socioambiental_referencias_tiles_v3/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/unidades_conservacao/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[67, 92, 125, 220], line_width_min_pixels=1, pickable=False),
+                        _mvt_layer("app/static/socioambiental_referencias_tiles_v4/terras_indigenas/{z}/{x}/{y}.pbf", min_zoom=5, max_zoom=9, filled=False, stroked=True, get_line_color=[99, 72, 139, 220], line_width_min_pixels=1, pickable=False),
                     ])
                 if bahia_mask:
                     socio_layers.insert(0, pdk.Layer("GeoJsonLayer", bahia_mask, filled=True, stroked=False, get_fill_color=[238, 240, 242, 205], pickable=False))
@@ -1008,17 +1009,17 @@ with st.expander("Mapas individualizados", expanded=False):
                     socio_layers.append(pdk.Layer("GeoJsonLayer", bahia_boundary, filled=False, stroked=True, get_line_color=[13, 39, 67, 255], line_width_min_pixels=2.5, pickable=False))
                 st.pydeck_chart(pdk.Deck(layers=socio_layers, initial_view_state=pdk.ViewState(latitude=-12.6, longitude=-41.7, zoom=5.15), tooltip={"html": INDIVIDUAL_MAP_TOOLTIP}), height=500)
                 if show_socio_hex:
-                    st.markdown('''<div id="soil-legend"><strong>Triagem socioambiental</strong><span class="legend-item"><i class="very-low"></i>Restrição crítica</span><span class="legend-item"><i class="low"></i>Diligência</span><span class="legend-item"><i class="medium"></i>Após 2020 predominante</span><span class="legend-item"><i class="high"></i>2009–2020 predominante</span><span class="legend-item"><i class="very-high"></i>Até 2008 predominante</span></div>''', unsafe_allow_html=True)
+                    st.markdown('''<div id="soil-legend"><strong>Triagem socioambiental</strong><span class="legend-item"><i class="very-low"></i>Embargo Ibama</span><span class="legend-item"><i class="low"></i>Desmatamento a partir de 2021</span><span class="legend-item"><i class="medium"></i>Desmatamento 2015–2020</span><span class="legend-item"><i class="high"></i>Desmatamento 2009–2014</span><span class="legend-item"><i class="very-high"></i>Abertura até 2008</span></div>''', unsafe_allow_html=True)
                 socio_reference_legend = []
                 if show_prodes:
-                    socio_reference_legend.extend(['<span class="legend-item"><i class="prodes-old"></i>PRODES até 2008</span>', '<span class="legend-item"><i class="prodes-mid"></i>PRODES 2009–2020</span>', '<span class="legend-item"><i class="prodes-new"></i>PRODES após 2020</span>'])
+                    socio_reference_legend.extend(['<span class="legend-item"><i class="prodes-old"></i>PRODES até 2008</span>', '<span class="legend-item"><i class="prodes-mid"></i>PRODES 2009–2014</span>', '<span class="legend-item"><i class="prodes-new"></i>PRODES 2015–2020</span>', '<span class="legend-item"><i class="prodes-recent"></i>PRODES a partir de 2021</span>'])
                 if show_embargos:
                     socio_reference_legend.append('<span class="legend-item"><i class="embargo"></i>Embargo Ibama vigente</span>')
                 if show_territories:
                     socio_reference_legend.extend(['<span class="legend-item"><i class="uc"></i>Unidade de Conservação</span>', '<span class="legend-item"><i class="ti"></i>Terra Indígena</span>'])
                 if socio_reference_legend:
                     st.markdown(f'<div id="source-legend"><strong>Referências ligadas</strong>{"".join(socio_reference_legend)}</div>', unsafe_allow_html=True)
-                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> restrições são verificadas primeiro. Em hexágonos, embargo poligonal vigente, UC ou TI cobrindo 50% ou mais da área gera vermelho; contato menor ou embargo pontual gera laranja. Em imóveis, qualquer contato com embargo poligonal gera vermelho e embargo pontual gera laranja; em seguida, desmatamento PRODES a partir de 2021 de 1 ha ou mais gera amarelo, mesmo com abertura antiga predominante (marco EUDR 31/12/2020). Nos demais casos, vale o período PRODES com maior área.<br/><b>Leitura das cores:</b> verde-escuro até 2008; verde-claro 2009–2020; amarelo abertura a partir de 2021 (predominante no hexágono; ≥1 ha no imóvel); laranja diligência; vermelho restrição crítica. Fontes: INPE (PRODES raster 30 m, 2025–2026), Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
+                st.markdown('''<p class="soil-methodology"><b>Metodologia:</b> qualquer embargo Ibama vigente (poligonal ou pontual) na unidade gera vermelho. Sem embargo, vale o período PRODES mais recente cujo desmatamento chega a 5% da área mapeada da unidade (≈108 ha no hexágono): a partir de 2021 laranja, 2015–2020 amarelo, 2009–2014 verde-claro; abaixo disso, verde-escuro. Nos imóveis, qualquer desmatamento a partir de 2021 de 1 ha ou mais já gera laranja. UC e TI não mudam a cor e aparecem como alerta.<br/><b>Marcos:</b> 2008 é o marco do Código Florestal (área rural consolidada). O marco da regra europeia contra desmatamento (EUDR) é 31/12/2020; o "ano 2020" do PRODES vai de ago/2019 a jul/2020, por isso entra em 2015–2020.<br/><b>Notas:</b> verde-escuro 100, verde-claro 75, amarelo 50, laranja 25, vermelho 0. Fontes: INPE (PRODES raster, 2025–2026), Ibama, MMA e Funai. É triagem de risco, não comprovação de conformidade.</p>''', unsafe_allow_html=True)
         elif map_title == "Uso atual do solo" and has_landuse:
             with st.expander("Uso atual do solo", expanded=False):
                 st.markdown('<p class="soil-description">Uso da terra em 2025: áreas já abertas e baratas favorecem a implantação.</p>', unsafe_allow_html=True)

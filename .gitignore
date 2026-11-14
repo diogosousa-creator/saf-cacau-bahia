@@ -30,10 +30,10 @@ tmp/*
 !data/processed/municipios_imoveis.parquet
 
 static/*
-!static/hex_base_tiles_v17/
-!static/hex_base_tiles_v17/**
-!static/imoveis_apresentacao_parcelas_tiles_v25/
-!static/imoveis_apresentacao_parcelas_tiles_v25/**
+!static/hex_base_tiles_v18/
+!static/hex_base_tiles_v18/**
+!static/imoveis_apresentacao_parcelas_tiles_v26/
+!static/imoveis_apresentacao_parcelas_tiles_v26/**
 !static/hex_soil_tiles_v8/
 !static/hex_soil_tiles_v8/**
 !static/solo_relevo_referencias_tiles_v3/
@@ -52,10 +52,10 @@ static/*
 !static/hex_custo_terra_tiles_v3/**
 !static/hex_logistica_ilheus_tiles_v6/
 !static/hex_logistica_ilheus_tiles_v6/**
-!static/hex_prodes_embargos_tiles_v4/
-!static/hex_prodes_embargos_tiles_v4/**
-!static/socioambiental_referencias_tiles_v3/
-!static/socioambiental_referencias_tiles_v3/**
+!static/hex_prodes_embargos_tiles_v6/
+!static/hex_prodes_embargos_tiles_v6/**
+!static/socioambiental_referencias_tiles_v4/
+!static/socioambiental_referencias_tiles_v4/**
 !static/hex_mao_obra_tiles_v3/
 !static/hex_mao_obra_tiles_v3/**
 !static/hex_uso_solo_tiles_v1/

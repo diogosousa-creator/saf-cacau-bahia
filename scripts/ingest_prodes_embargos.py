@@ -30,12 +30,19 @@ PROCESSED = ROOT / "data" / "processed"
 METRIC_CRS = "EPSG:5880"
 # Área mínima mapeada pelo PRODES (ha) usada na regra EUDR dos imóveis.
 EUDR_MIN_POST2020_HA = 1.0
+# Um período "conta" na unidade quando seu desmatamento chega a 5% da área
+# mapeada pelo PRODES (hexágono de 5 km ≈ 108 ha). Vale o período mais recente
+# que atinge o limiar; abaixo dele as manchas não mudam a classe.
+LIMIAR_PERIODO_PCT = 5.0
 
 # Incrementos devem ser mutuamente exclusivos. A área acumulada até 2000,
 # quando usada, deve chegar já marcada como ``year=2000``.
+# Até 2008 = marco do Código Florestal; o "ano 2020" do PRODES termina em
+# jul/2020, antes do marco EUDR (31/12/2020), por isso fica em 2015–2020.
 PERIODS = {
     "pre2008": lambda year: year <= 2008,
-    "2009_2020": lambda year: (year >= 2009) & (year <= 2020),
+    "2009_2014": lambda year: (year >= 2009) & (year <= 2014),
+    "2015_2020": lambda year: (year >= 2015) & (year <= 2020),
     "post2020": lambda year: year >= 2021,
 }
 
@@ -77,8 +84,8 @@ def prodes_area_stats(units: gpd.GeoDataFrame, unit_id: str, prodes: gpd.GeoData
         frame["_year"] = pd.to_numeric(frame[year_col], errors="coerce")
         frame = frame[frame["_year"].notna()].copy()
         frame["_period"] = np.select(
-            [PERIODS["pre2008"](frame["_year"]), PERIODS["2009_2020"](frame["_year"]), PERIODS["post2020"](frame["_year"])],
-            ["pre2008", "2009_2020", "post2020"],
+            [rule(frame["_year"]) for rule in PERIODS.values()],
+            list(PERIODS),
             default=None,
         )
     frame = frame[frame["_period"].notna()].copy()
@@ -196,12 +203,22 @@ def _restriction_stats(
 
 
 def _temporal_class(frame: pd.DataFrame) -> pd.Series:
-    values = frame[["prodes_pre2008_ha", "prodes_2009_2020_ha", "prodes_post2020_ha"]].to_numpy(dtype=float)
-    labels = np.array(["Verde escuro", "Verde claro", "Amarelo"], dtype=object)
-    maxima = values.max(axis=1)
-    result = np.full(len(frame), "Sem evidência temporal classificável", dtype=object)
-    has_area = maxima > 0
-    result[has_area] = labels[values[has_area].argmax(axis=1)]
+    """Classe pelo período PRODES mais recente com desmatamento relevante.
+
+    Verde escuro: nada relevante depois de 2008; Verde claro: 2009–2014;
+    Amarelo: 2015–2020; Laranja: a partir de 2021. "Relevante" é atingir
+    ``LIMIAR_PERIODO_PCT`` da área mapeada pelo PRODES na unidade.
+    """
+    mapped = frame["prodes_area_mapeada_ha"].fillna(0).astype(float)
+    limit = mapped * LIMIAR_PERIODO_PCT / 100
+    def hits(column: str) -> pd.Series:
+        area = frame[column].fillna(0).astype(float)
+        return (area > 0) & area.ge(limit)
+    result = np.select(
+        [mapped.le(0), hits("prodes_post2020_ha"), hits("prodes_2015_2020_ha"), hits("prodes_2009_2014_ha")],
+        ["Sem evidência temporal classificável", "Laranja", "Amarelo", "Verde claro"],
+        default="Verde escuro",
+    )
     return pd.Series(result, index=frame.index)
 
 
@@ -210,46 +227,40 @@ def _score_for_class(classification: pd.Series) -> pd.Series:
         "Verde escuro": 100.0,
         "Verde claro": 75.0,
         "Amarelo": 50.0,
-        "Laranja": 35.0,
+        "Laranja": 25.0,
         "Vermelho": 0.0,
     })
+
+
+def _any_embargo(frame: pd.DataFrame) -> pd.Series:
+    return frame["embargo_intersecao_ha"].fillna(0).gt(0) | frame["embargo_pontual_qtd"].fillna(0).gt(0)
 
 
 def classify_hexes(table: pd.DataFrame) -> pd.DataFrame:
     result = table.copy()
     temporal = _temporal_class(result)
-    # Hexagons: restrictions receive red only where the union occupies at
-    # least half of the cell. Any smaller contact is orange; point embargoes
-    # are always orange and have no fabricated area.
-    result["classe_prodes_embargos"] = np.select(
-        [result["restricao_unida_pct"].ge(50), result["restricao_unida_pct"].gt(0) | result["embargo_pontual_qtd"].gt(0)],
-        ["Vermelho", "Laranja"],
-        default=temporal,
-    )
+    # Qualquer embargo Ibama (poligonal ou pontual) leva o hexágono a vermelho.
+    # UC e TI não mudam a cor: ficam como alerta explícito na unidade.
+    result["classe_prodes_embargos"] = np.where(_any_embargo(result), "Vermelho", temporal)
     result["risco_socioambiental"] = _score_for_class(result["classe_prodes_embargos"])
-    result["prodes_embargos_regra"] = "HEX_V1_TEMPORAL_E_RESTRICAO_50PCT"
+    result["prodes_embargos_regra"] = "HEX_V2_EMBARGO_E_PERIODO_RECENTE_5PCT"
     return result
 
 
 def classify_farms(table: pd.DataFrame) -> pd.DataFrame:
     result = table.copy()
     temporal = _temporal_class(result)
-    # Certified properties: only an active polygonal federal embargo changes
-    # to red by any touch. UC/TI evidence remains explicit metadata/alert,
-    # following the business rule supplied for this property-level view.
-    # EUDR (Regulamento UE 2023/1115): o marco é 31/12/2020.  Qualquer
+    # EUDR (Regulamento UE 2023/1115): marco 31/12/2020. Nos imóveis, qualquer
     # desmatamento PRODES a partir de 2021 igual ou acima da área mínima
-    # mapeada (1 ha) leva o imóvel a amarelo, mesmo que a abertura antiga seja
-    # predominante.  Regra exclusiva dos imóveis; hexágonos mantêm a
-    # predominância.
+    # mapeada (1 ha) leva a laranja; os demais períodos seguem o limiar de 5%.
     eudr_recent = result["prodes_post2020_ha"].fillna(0).ge(EUDR_MIN_POST2020_HA)
     result["classe_prodes_embargos"] = np.select(
-        [result["embargo_intersecao_ha"].gt(0), result["embargo_pontual_qtd"].gt(0), eudr_recent],
-        ["Vermelho", "Laranja", "Amarelo"],
+        [_any_embargo(result), eudr_recent],
+        ["Vermelho", "Laranja"],
         default=temporal,
     )
     result["risco_socioambiental"] = _score_for_class(result["classe_prodes_embargos"])
-    result["prodes_embargos_regra"] = "IMOVEL_V2_EMBARGO_E_EUDR_POS2020_1HA"
+    result["prodes_embargos_regra"] = "IMOVEL_V3_EMBARGO_EUDR_1HA_PERIODO_5PCT"
     return result
 
 
@@ -263,7 +274,8 @@ def _attach(base: pd.DataFrame, stats: pd.DataFrame, base_id: str, stats_id: str
         "risco_socioambiental_score", "risco_socioambiental_status", "risco_socioambiental_confidence",
         "risco_socioambiental_source_key", "risco_socioambiental_method_version", "risco_socioambiental_alert_flags",
     ]
-    result = base.drop(columns=[field for field in fields if field in base.columns], errors="ignore")
+    legacy = ["prodes_2009_2020_ha"]   # período único usado até a versão V2
+    result = base.drop(columns=[field for field in [*fields, *legacy] if field in base.columns], errors="ignore")
     result = result.merge(stats.rename(columns={stats_id: base_id}), on=base_id, how="left", validate="one_to_one")
     result = classifier(result)
     result["risco_socioambiental_score"] = result["risco_socioambiental"]
@@ -274,7 +286,7 @@ def _attach(base: pd.DataFrame, stats: pd.DataFrame, base_id: str, stats_id: str
         result["risco_socioambiental_status"].eq("complete"), "medium", "low"
     )
     result["risco_socioambiental_source_key"] = "prodes_inpe_raster_2025_2026+embargos_ibama_pamgia+cnuc_mma+funai"
-    result["risco_socioambiental_method_version"] = "PRODES_EMBARGOS_V2_RASTER30M"
+    result["risco_socioambiental_method_version"] = "PRODES_EMBARGOS_V3_RASTER_4PERIODOS"
     def flags(row: pd.Series) -> str:
         values = []
         if row["embargo_intersecao_ha"] > 0: values.append("embargo_ibama_poligonal")
